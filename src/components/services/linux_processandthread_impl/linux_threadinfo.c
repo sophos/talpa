@@ -25,7 +25,11 @@
 #include <linux/string.h>
 #include <linux/tty.h>
 #include <linux/fs_struct.h>
-#include <linux/uaccess.h>
+
+#ifdef TALPA_HAS_PROBE_KERNEL_READ
+# include <linux/uaccess.h>
+#endif
+
 #include <asm/uaccess.h>
 
 #include "common/talpa.h"
