@@ -25,6 +25,7 @@
 #include <linux/string.h>
 #include <linux/tty.h>
 #include <linux/fs_struct.h>
+#include <linux/uaccess.h>
 #include <asm/uaccess.h>
 
 #include "common/talpa.h"
@@ -157,26 +158,37 @@ LinuxThreadInfo* newLinuxThreadInfo(void)
 
         if ( likely(mm != NULL) )
         {
-            if ( likely (down_read_trylock(&mm->mmap_sem) ) )
+            object->mEnvSize = mm->env_end - mm->env_start;
+            object->mEnv = talpa_alloc(object->mEnvSize);
+            if ( likely(object->mEnv != NULL) )
             {
-                object->mEnvSize = mm->env_end - mm->env_start;
-                object->mEnv = talpa_alloc(object->mEnvSize);
-                if ( likely(object->mEnv != NULL) )
+#ifdef TALPA_HAS_PROBE_KERNEL_READ
+                if ( probe_kernel_read(object->mEnv, (void *)mm->env_start, object->mEnvSize) )
                 {
+                    err("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
+                    talpa_free(object->mEnv);
+                    object->mEnv = NULL;
+                    object->mEnvSize = 0;
+                }
+#else
+                /* Don't have probe_kernel_read (2.6.32+) */
+                if ( likely (down_read_trylock(&mm->mmap_sem) ) )
+                {
+                    /* We are not within munmap which holds the write lock */
+                    up_read(&mm->mmap_sem); /* We don't actually need the lock while calling copy_from_user */
                     if ( copy_from_user(object->mEnv, (void *)mm->env_start, object->mEnvSize) )
                     {
                         err("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
+                        talpa_free(object->mEnv);
+                        object->mEnv = NULL;
+                        object->mEnvSize = 0;
                     }
                 }
-                else
-                {
-                    object->mEnvSize = 0;
-                }
-                up_read(&mm->mmap_sem);
+#endif
             }
             else
             {
-                dbg("mm->mmap_sem is write locked");
+                object->mEnvSize = 0;
             }
             atomic_dec(&mm->mm_users);
         }

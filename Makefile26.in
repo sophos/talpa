@@ -37,6 +37,7 @@ EXTRA_CFLAGS += -I$(src)/src -I$(src)/src/ifaces -I$(src)/include \
 		@nopasymbol@ \
 		@kfuncchpgattraddr@ \
 		@notasklistlock@ \
+		@probe_kernel_read@ \
 		@vfsmntlock@ \
 		@samefile@ \
 		@filldirbackport@ \

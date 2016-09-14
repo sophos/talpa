@@ -1015,6 +1015,21 @@ if test "$notasklistlock" != ""; then
     fi
 fi
 
+TALPA_LOCATE_HEADER(linux/uaccess.h, $kernelhdrspath, uaccessfound=yes, uaccessfound=no)
+echo $uaccessfound
+if test $uaccessfound == "yes"
+then
+    AC_MSG_CHECKING([for probe_kernel_read])
+    ${EGREP} probe_kernel_read $TALPA_HEADER_LOCATION/linux/uaccess.h >/dev/null 2>&1
+    if test $? -eq 0
+    then
+        AC_MSG_RESULT([present])
+        AC_SUBST(probe_kernel_read,"-DTALPA_HAS_PROBE_KERNEL_READ")
+    else
+        AC_MSG_RESULT([not present])
+    fi
+fi
+
 function find_syscall_table
 {
     sys_call_table=`${EGREP} " sys_call_table\$" "$1" 2>/dev/null | ${CUT} -d ' ' -f 1`
@@ -1995,6 +2010,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@nopasymbol@/${nopasymbol}/; \
                 s/@kfuncchpgattraddr@/${kfuncchpgattraddr}/; \
                 s/@notasklistlock@/${notasklistlock}/; \
+                s/@probe_kernel_read@/${probe_kernel_read}/; \
                 s/@vfsmntlock@/${vfsmntlock}/; \
                 s/@samefile@/${samefile}/; \
                 s/@buildprocfs@/${buildprocfs}/; s/@binarysysctl@/${binarysysctl}/; \
@@ -2051,6 +2067,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@nopasymbol@/${nopasymbol}/; \
                 s/@kfuncchpgattraddr@/${kfuncchpgattraddr}/; \
                 s/@notasklistlock@/${notasklistlock}/; \
+                s/@probe_kernel_read@/${probe_kernel_read}/; \
                 s/@vfsmntlock@/${vfsmntlock}/; \
                 s/@samefile@/${samefile}/; \
                 s/@buildprocfs@/${buildprocfs}/; s/@binarysysctl@/${binarysysctl}/; \
