@@ -1353,23 +1353,31 @@ if test $((kern_version_code)) -ge 132608; then
 
     # Autodetect if struct inode uses mutexes
     # < 2.6.16
-    if test $((kern_version_code)) -lt 132624 -a "$mutexes" != ""; then
-        if test "$auto_inodemutex" = "yes"; then
-            TALPA_LOCATE_HEADER(linux/fs.h, $kernelhdrspath, /bin/true, /bin/false , [quiet])
-            AC_MSG_CHECKING([for i_mutex inode struct member])
-            ${EGREP} i_mutex\; $TALPA_HEADER_LOCATION/linux/fs.h >/dev/null 2>&1
-            if test $? -eq 0; then
-                AC_MSG_RESULT([detected])
-                AC_SUBST(inodemutex,"-DTALPA_INODE_USES_MUTEXES")
-            else
-                AC_MSG_RESULT([not detected])
+    TALPA_LOCATE_HEADER(linux/fs.h, $kernelhdrspath, /bin/true, /bin/false , [quiet])
+    ${EGREP} " inode_lock_nested" $TALPA_HEADER_LOCATION/linux/fs.h >/dev/null 2>&1
+    if test $? -eq 0; then
+        AC_SUBST(inodemutex,"-DTALPA_INODE_USES_INODE_LOCK")
+    elif test "$mutexes" != ""
+    then
+        if test $((kern_version_code)) -lt 132624
+        then
+            if test "$auto_inodemutex" = "yes"; then
+                AC_MSG_CHECKING([for i_mutex inode struct member])
+                ${EGREP} i_mutex\; $TALPA_HEADER_LOCATION/linux/fs.h >/dev/null 2>&1
+                if test $? -eq 0; then
+                    AC_MSG_RESULT([detected])
+                    AC_SUBST(inodemutex,"-DTALPA_INODE_USES_MUTEXES")
+                else
+                    AC_MSG_RESULT([not detected])
+                    AC_SUBST(inodemutex,"-DTALPA_INODE_USES_SEMAPHORES")
+                fi
             fi
-        fi
-    else
-        if test "$mutexes" != ""; then
+        else
             # Kernels starting with 2.6.16 use them
             AC_SUBST(inodemutex,"-DTALPA_INODE_USES_MUTEXES")
         fi
+    else
+        AC_SUBST(inodemutex,"-DTALPA_INODE_USES_SEMAPHORES")
     fi
 
 
