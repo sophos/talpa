@@ -138,15 +138,16 @@ interface.spec : include/talpa-processexclusion.h include/talpa-vettingclient.h
 	sha1sum $^ | sed -e"s/  / /" >$@
 
 manifest.spec : distdir
-	( cd $(distdir) && find * -type f | sort | xargs sha1sum | sed -e"s/  / /" ) >$@
+	( cd $(distdir) && find * -type f | gawk -- '{ a[NR] = $$0; } END { asort(a,o); for (i=1; i<=NR ; i++) print o[i]; }' | xargs sha1sum | sed -e"s/  / /" ) >$@
 
 source.spec : distdir
-	( cd $(distdir) && find include src -type f | sort | xargs sha1sum | sed -e"s/  / /" ) >$@
+	( cd $(distdir) && find include src -type f | gawk -- '{ a[NR] = $$0; } END { asort(a,o); for (i=1; i<=NR ; i++) print o[i]; }' | xargs sha1sum | sed -e"s/  / /" ) >$@
 
 manifest.sig : manifest.spec
 	echo "" >manifest.sig
 
 talpa-srcpack.tar.gz : distdir interface.spec manifest.spec source.spec manifest.sig
+	chmod -R og-rwx $(distdir) manifest.sig manifest.spec source.spec interface.spec
 	tar cf - $(distdir) manifest.sig manifest.spec source.spec interface.spec | GZIP=$(GZIP_ENV) gzip -c >$@
 
 exampleclients:

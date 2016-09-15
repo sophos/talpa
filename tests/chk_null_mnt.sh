@@ -2,7 +2,7 @@
 #
 # TALPA test script
 #
-# Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+# Copyright (C) 2004-2014 Sophos Limited, Oxford, England.
 #
 # This program is free software; you can redistribute it and/or modify it under the terms of the
 # GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -17,8 +17,27 @@
 
 . ${srcdir}/talpa-init.sh
 
+tmpdir='/tmp/tlp-test/mnt1'
+mkdir -p $tmpdir
+
+talpa_disable
+talpa_unload
+
+lsmod | grep talpa && { echo "Unable to unload Talpa" >&2 ; exit 77 ; }
+./chk_null_mnt "$tmpdir" || {
+    echo "Kernel doesn't support NULL device" >&2
+    umount $tmpdir
+    rmdir $tmpdir
+    exit 77
+}
+
+talpa_load
+talpa_defaults
+talpa_enable
+
 lsmod | grep talpa
 
-./chk_null_mnt
+./chk_null_mnt "$tmpdir"
 EXIT=$?
+rmdir $tmpdir
 exit $EXIT

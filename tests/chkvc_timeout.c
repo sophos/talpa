@@ -61,9 +61,8 @@ int main(int argc, char *argv[])
     if ( !rc )
     {
         int fd;
-        int ret;
 
-        fd = open(argv[1], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+        fd = open(tmpfile, O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
         if (fd < 0) {
             perror("Failed to open file");
             return 1;

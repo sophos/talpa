@@ -1,7 +1,7 @@
 /*
  * TALPA test program
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2014 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -15,62 +15,56 @@
  *
  */
 
-#include <config.h>
-#include <configure/autoconf.h>
-
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include <sys/mount.h>
-#include <linux/unistd.h>
 
 #include "tlp-test.h"
-#include "modules/tlp-test.h"
 
-
-char *get_talpa_vcdevice(void);
 
 int main(int argc, char *argv[])
 {
-    int fd;
-    char *devname;
+    int ret;
+    const char* mntpnt;
 
-
-    devname = get_talpa_vcdevice();
-    if ( !devname )
+    if (argc > 1)
     {
-        fprintf(stderr,"Failed to get talpa device!\n");
-        return 1;
+        mntpnt = argv[1];
+    }
+    else
+    {
+        mntpnt = "/bindproc";
     }
 
-    fd = open(devname,O_RDWR,0);
 
-    if ( fd < 0 )
+    ret = mkdir(mntpnt, 0700);
+    if (ret != 0 && errno != EEXIST)
     {
-        fprintf(stderr,"Failed to open talpa-test device!\n");
-        return 1;
+        return 77;
     }
 
-    if ( open_log() < 0 )
+    if (ret == 0)
     {
-        fprintf(stderr,"Failed to open syslog!\n");
-        return 1;
+        if ( mount("/proc",mntpnt,NULL,MS_BIND,"") )
+        {
+            fprintf(stderr,"Failed to mount proc errno=%d\n",errno);
+            if (rmdir(mntpnt) != 0)
+            {
+                /* May have mounted after all */
+                umount(mntpnt);
+                rmdir(mntpnt);
+            }
+            return 1;
+        }
+        umount(mntpnt);
+        rmdir(mntpnt);
     }
-
-    close(fd);
-
-    if ( !search_log(5, "destroyClient") )
-    {
-        fprintf(stderr,"Bad output!\n");
-        close(fd);
-        return 1;
-    }
-
-    close_log();
 
     return 0;
 }

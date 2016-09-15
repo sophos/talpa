@@ -16,6 +16,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -37,7 +38,6 @@ int main(int argc, char *argv[])
     const unsigned int tout = 2;
     char file[100];
     int talpa;
-    int pe;
     int rc;
     struct TalpaPacket_VettingDetails* details;
     int status;

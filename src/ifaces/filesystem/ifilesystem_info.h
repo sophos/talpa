@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -33,6 +33,7 @@ typedef struct
     uint64_t              (*device)         (const void* self);
     uint32_t              (*deviceMajor)    (const void* self);
     uint32_t              (*deviceMinor)    (const void* self);
+    int                   (*propagationCount) (const void* self);
     /*
      *  Object supporting this interface instance.
      */

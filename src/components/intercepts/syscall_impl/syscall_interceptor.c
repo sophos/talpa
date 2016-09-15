@@ -190,7 +190,7 @@ static void deleteSyscallInterceptor(struct tag_SyscallInterceptor* object)
 static inline int examineFile(EFilesystemOperation op, const char *filename, int flags, int mode)
 {
     int decision = 0;
-    TALPA_FILENAME_T* tmp = getname(filename);
+    TALPA_FILENAME_T* tmp = talpa_getname(filename);
 
     if ( !IS_ERR(tmp) )
     {
@@ -374,7 +374,7 @@ static int talpa_copy_mount_string(const void __user *data, char **where)
 #ifdef TALPA_HAS_STRNDUP_USER
 	tmp = strndup_user(data, PAGE_SIZE);
 #else
-    tmp = getname(data);
+    tmp = talpa_getname(data);
 #endif
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
@@ -397,7 +397,7 @@ static int examineMount(char* dev_name, char* dir_name, char* type, unsigned lon
         goto out;
     }
 
-    dir = getname(dir_name);
+    dir = talpa_getname(dir_name);
 
     if ( IS_ERR(dir) )
     {
@@ -442,7 +442,7 @@ static void examineUmount(char* name, int flags)
     TALPA_FILENAME_T* kname;
 
 
-    kname = getname(name);
+    kname = talpa_getname(name);
 
     if ( !IS_ERR(kname) )
     {

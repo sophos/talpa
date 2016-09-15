@@ -36,9 +36,6 @@ int main(int argc, char *argv[])
     struct talpa_write tw;
     char buf[4096];
     unsigned int len;
-    int rfd;
-    char buf2[4096];
-
 
     fd = open("/dev/talpa-test",O_RDWR,0);
 

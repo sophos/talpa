@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 
     if ( ret < 0 )
     {
-        fprintf(stderr,"lenght ioctl error!\n");
+        fprintf(stderr,"length ioctl error!\n");
         close(fd);
         return 1;
     }
@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
 
     if ( len != fstat.st_size )
     {
-        fprintf(stderr,"Size mismatch %d != %d!\n", len, fstat.st_size);
+        fprintf(stderr,"Size mismatch %d != %d!\n", len, (unsigned int)fstat.st_size);
         close(fd);
         return 1;
     }

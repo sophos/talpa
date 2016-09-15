@@ -3,7 +3,7 @@
  *
  * TALPA Platform code
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -31,6 +31,16 @@
 #include "platforms/linux/glue.h"
 #include "platforms/linux/locking.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0)
+ #define TALPA_REPLACE_MOUNT_STRUCT
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+ #define TALPA_MNT_NAMESPACE
+#endif
+
+int countPropagationPoints(struct vfsmount* mnt);
+
 struct vfsmount* getParent(struct vfsmount* mnt);
 
 int iterateFilesystems(struct vfsmount* root, int (*callback) (struct vfsmount* mnt, unsigned long flags, bool fromMount));
@@ -40,6 +50,9 @@ int iterateFilesystems(struct vfsmount* root, int (*callback) (struct vfsmount* 
  */
 const char *getDeviceName(struct vfsmount* mnt);
 
+#ifdef TALPA_MNT_NAMESPACE
+struct mnt_namespace *getNamespaceInfo(struct vfsmount * mnt);
+#endif
 
 struct dentry *getVfsMountPoint(struct vfsmount* mnt);
 

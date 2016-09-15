@@ -1,5 +1,11 @@
 #include "autoconf.h"
 
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#include <linux/kconfig.h>
+#endif
+
 #include <linux/uaccess.h>
 
 int main()

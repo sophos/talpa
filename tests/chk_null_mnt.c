@@ -1,7 +1,7 @@
 /*
  * TALPA test program
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2014 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -15,23 +15,56 @@
  *
  */
 
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <sys/mount.h>
 
 #include "tlp-test.h"
 
 
-int main()
+int main(int argc, char *argv[])
 {
-    if ( mount(NULL,"/mnt","proc",0,"") )
+    int ret;
+    const char* mntpnt;
+
+    if (argc > 1)
     {
-        fprintf(stderr,"Failed to mount proc errno=%d\n",errno);
-        return 1;
+        mntpnt = argv[1];
     }
-    umount("/mnt");
+    else
+    {
+        mntpnt = "/fakeproc";
+    }
+
+
+    ret = mkdir(mntpnt, 0700);
+    if (ret != 0 && errno != EEXIST)
+    {
+        return 77;
+    }
+
+    if (ret == 0)
+    {
+        if ( mount(NULL,mntpnt,"proc",0,"") )
+        {
+            fprintf(stderr,"Failed to mount proc errno=%d\n",errno);
+            if (rmdir(mntpnt) != 0)
+            {
+                /* May have mounted after all */
+                umount(mntpnt);
+                rmdir(mntpnt);
+            }
+            return 1;
+        }
+        umount(mntpnt);
+        rmdir(mntpnt);
+    }
 
     return 0;
 }

@@ -129,6 +129,7 @@ int main(int argc, char *argv[])
     }
 
     fdetails = vc_file_frag(details);
+    (void) fdetails;
 
     test = "test-vc-stream";
     test_len = strlen(test);

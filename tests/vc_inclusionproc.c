@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
     {
         if ( details->header.payloadLength != (sizeof(struct TalpaPacket_VettingDetails) - sizeof(struct TalpaProtocolHeader) + sizeof(struct TalpaPacketFragment_FileDetails)) )
         {
-            fprintf(stderr, "Size error (%u %u)!\n", details->header.payloadLength, (sizeof(struct TalpaPacket_VettingDetails) - sizeof(struct TalpaProtocolHeader) + sizeof(struct TalpaPacketFragment_FileDetails)));
+            fprintf(stderr, "Size error (%u %u)!\n", details->header.payloadLength, (unsigned int) (sizeof(struct TalpaPacket_VettingDetails) - sizeof(struct TalpaProtocolHeader) + sizeof(struct TalpaPacketFragment_FileDetails)));
             vc_exit(talpa);
             wait(NULL);
             return -1;

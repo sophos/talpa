@@ -3,7 +3,7 @@
 #
 # TALPA Filesystem Interceptor
 #
-# Copyright (C) 2004-2013 Sophos Limited
+# Copyright (C) 2004-2016 Sophos Plc
 #
 # This program is free software; you can redistribute it and/or modify it under the terms of the
 # GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -16,15 +16,11 @@
 # write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
 
-#
-# Bolierplate.
-#
-AC_INIT(talpa, 0.9.94)
+AC_INIT(talpa, 0.9.95)
 AC_CONFIG_AUX_DIR(config)
-AC_COPYRIGHT(Copyright (c) 2004-2013 Sophos Limited)
+AC_COPYRIGHT(Copyright (c) 2004-2016 Sophos Plc)
 
-AM_INIT_AUTOMAKE([1.9 tar-ustar])
-AM_INIT_AUTOMAKE([dist-zip dist-bzip2 dist-shar])
+AM_INIT_AUTOMAKE([1.9 tar-ustar dist-zip dist-bzip2])
 AM_CONFIG_HEADER(config.h)
 AM_MAINTAINER_MODE
 
@@ -35,13 +31,26 @@ AC_PROG_CC
 AM_PROG_CC_C_O
 AC_CHECK_TOOL(MODULELINKER, ld, :)
 AC_PROG_EGREP
-AC_PATH_PROG(CAT, cat)
-AC_PATH_PROG(CUT, cut)
-AC_PATH_PROG(SED, sed)
-AC_PATH_PROG(UNAME, uname)
 AC_PROG_LN_S
+
+AC_PATH_PROG(CAT, cat)
+test -x "${CAT}" || AC_MSG_ERROR([Please install cat before configuring])
+
+AC_PATH_PROG(CUT, cut)
+test -x "${CUT}" || AC_MSG_ERROR([Please install cut before configuring])
+
+AC_PATH_PROG(SED, sed)
+test -x "${SED}" || AC_MSG_ERROR([Please install sed before configuring])
+
+AC_PATH_PROG(UNAME, uname)
+test -x "${UNAME}" || AC_MSG_ERROR([Please install uname before configuring])
+
 AC_PATH_PROG(RM, rm)
+test -x "${RM}" || AC_MSG_ERROR([Please install rm before configuring])
+
 AC_PATH_PROG(XARGS, xargs)
+test -x "${XARGS}" || AC_MSG_ERROR([Please install xargs before configuring])
+
 
 #
 # Options.
@@ -534,6 +543,9 @@ function check_headers_layout
     if test -d "${kerneldir}/arch/x86/include/asm"; then
         kernelhdrspath=`append_path "${kernelhdrspath}" "${kerneldir}/arch/x86/include"`
     fi
+    if test -d "${kerneldir}/arch/x86/include/generated"; then
+        kernelhdrspath=`append_path "${kernelhdrspath}" "${kerneldir}/arch/x86/include/generated"`
+    fi
     if test -d "${kerneldir}/include2"; then
         kernelhdrspath=`append_path "${kernelhdrspath}" "${kerneldir}/include2"`
         if test -d "${kerneldir}/include2/asm/mach-default"; then
@@ -577,6 +589,7 @@ fi
 #
 TALPA_LOCATE_HEADER(linux/version.h, $kernelhdrspath)
 
+
 TALPA_LOCATE_HEADER(linux/magic.h, $kernelhdrspath, linuxmagicfound=yes, linuxmagicfound=no)
 AC_MSG_RESULT([$linuxmagicfound - $TALPA_HEADER_LOCATION])
 if test "$linuxmagicfound" = "yes" ; then
@@ -586,6 +599,16 @@ else
     linuxmagicinclude=""
 fi
 AC_SUBST(linuxmagicinclude, "$linuxmagicinclude")
+
+TALPA_LOCATE_HEADER(uapi/linux/magic.h, $kernelhdrspath, linuxuapimagicfound=yes, linuxuapimagicfound=no)
+AC_MSG_RESULT([$linuxuapimagicfound - $TALPA_HEADER_LOCATION])
+if test "$linuxuapimagicfound" = "yes" ; then
+    linuxuapimagicinclude="-I$TALPA_HEADER_LOCATION"
+    AC_DEFINE([HAVE_UAPILINUXMAGIC],1,[Defined when we have uapi/linux/magic.h])
+else
+    linuxuapimagicinclude=""
+fi
+AC_SUBST(linuxuapimagicinclude, "$linuxuapimagicinclude")
 
 
 # Check for uidgid.h type
@@ -608,11 +631,32 @@ else
 fi
 AC_SUBST(linuxcompilerinclude, "$linuxcompilerinclude")
 
+TALPA_LOCATE_HEADER(uapi/asm/unistd.h, $kernelhdrspath, uapiunistdfound=yes, uapiunistdfound=no)
+AC_MSG_RESULT([$uapiunistdfound - $TALPA_HEADER_LOCATION])
+if test "$uapiunistdfound" = "yes" ; then
+    uapiunistdinclude="-I$TALPA_HEADER_LOCATION"
+    AC_DEFINE([HAVE_UAPIUNISTD],1,[Defined when we have uapi/asm/unistd.h])
+else
+    uapiunistdinclude=""
+fi
+AC_SUBST(uapiunistdinclude, "$uapiunistdinclude")
+
+TALPA_LOCATE_HEADER(asm/unistd_64_x32.h, $kernelhdrspath, unistd64x32found=yes, unistd64x32found=no)
+AC_MSG_RESULT([$unistd64x32found - $TALPA_HEADER_LOCATION])
+if test "$unistd64x32found" = "yes" ; then
+    unistd64x32include="-I$TALPA_HEADER_LOCATION"
+    AC_DEFINE([HAVE_UNISTD64x32],1,[Defined when we have asm/unistd_64_x32.h])
+else
+    unistd64x32include=""
+fi
+AC_SUBST(unistd64x32include, "$unistd64x32include")
+
 AC_MSG_CHECKING([for kernel configuration])
 TALPA_LOCATE_HEADER(generated/autoconf.h, $kernelhdrspath, autoconffound=yes, autoconffound=no, [quiet])
 if test "$autoconffound" = "yes"; then
     autoconf_h=generated/autoconf.h
     autoconf_h_path=$TALPA_HEADER_LOCATION/generated/autoconf.h
+    autoconf_h_include="-I${TALPA_HEADER_LOCATION}"
     utsrelease_h=generated/utsrelease.h
     ccgenerateduts="-DGENERATED_UTS_RELEASE"
 else
@@ -620,11 +664,13 @@ else
     if test "$autoconffound" = "yes"; then
         autoconf_h=linux/autoconf.h
         autoconf_h_path=$TALPA_HEADER_LOCATION/linux/autoconf.h
+        autoconf_h_include="-I${TALPA_HEADER_LOCATION}"
         utsrelease_h=linux/utsrelease.h
     else
         AC_MSG_ERROR([autoconf.h not found])
     fi
 fi
+AC_SUBST(autoconf_h_include,"$autoconf_h_include")
 
 if test ! -d tests/configure; then
     mkdir -p tests/configure
@@ -692,12 +738,20 @@ kern_version_code=`tests/configure/kernversion`
 AC_MSG_RESULT([${kern_version_code}])
 ## 2.6.0  == 132608
 ## 2.6.5  == 132613
-## 2.6.18 == 132626?
-## 2.6.36 == 132644?
+## 2.6.15 == 132623     0x02060f
+## 2.6.18 == 132626     0x020612    0x12==18
+## 2.6.21 == 132629     0x020615
+## 2.6.24 (Ubuntu 8.04)
+## 2.6.25 == 132633     0x020619
+## 2.6.36 == 132644     0x020624    0x24==36
 ## 3.0.0  == 196608     0x030000
 ## 3.3.0  == 197376     0x030300
 ## 3.5.0  == 197888     0x030500
 ## 3.7.0  == 198400     0x030700
+## 3.11.0 == 199424     0x030b00
+## 3.11.10== 199434     0x030b0a (Ubuntu 12.04.4)
+## 3.12.0 == 199680
+## 3.13.0 == 199936     0x030d00
 ${RM} -f tests/configure/kernversion
 AC_MSG_CHECKING([for kernel version string])
 TALPA_LOCATE_HEADER($utsrelease_h, $kernelhdrspath, cckernrelease="-DSEPARATE_UTS_RELEASE", /bin/true, [quiet])
@@ -961,6 +1015,21 @@ if test "$notasklistlock" != ""; then
     fi
 fi
 
+TALPA_LOCATE_HEADER(linux/uaccess.h, $kernelhdrspath, uaccessfound=yes, uaccessfound=no)
+echo $uaccessfound
+if test $uaccessfound == "yes"
+then
+    AC_MSG_CHECKING([for probe_kernel_read])
+    ${EGREP} probe_kernel_read $TALPA_HEADER_LOCATION/linux/uaccess.h >/dev/null 2>&1
+    if test $? -eq 0
+    then
+        AC_MSG_RESULT([present])
+        AC_SUBST(probe_kernel_read,"-DTALPA_HAS_PROBE_KERNEL_READ")
+    else
+        AC_MSG_RESULT([not present])
+    fi
+fi
+
 function find_syscall_table
 {
     sys_call_table=`${EGREP} " sys_call_table\$" "$1" 2>/dev/null | ${CUT} -d ' ' -f 1`
@@ -1118,33 +1187,75 @@ if test $((kern_version_code)) -ge 132608; then
 
     AC_MSG_CHECKING([for vfsmount and br lock])
     vfsmount_lock_lock=`${EGREP} "[[VDd]] vfsmount_lock_lock\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
-	lg_local_lock=`${EGREP} " lg_local_lock\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
-	mount_lock=`${EGREP} " mount_lock\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
+    lg_local_lock=`${EGREP} " lg_local_lock\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
+    mount_lock=`${EGREP} " mount_lock\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
 
-	if test x"$vfsmount_lock_lock" != x""  && test "$lg_local_lock" == ""  ; then
-		AC_MSG_RESULT([vfsmount lock is BRLOCK])
-		AC_SUBST(vfsmntlock, "-DTALPA_USE_VFSMOUNT_LOCK -DTALPA_VFSMOUNT_LOCK_BRLOCK")
-	elif test x"$vfsmount_lock_lock" != x""  && test "$lg_local_lock" != ""  ; then
-		AC_MSG_RESULT([vfsmount lock is LG_BRLOCK])
-		AC_SUBST(vfsmntlock, "-DTALPA_USE_VFSMOUNT_LOCK -DTALPA_VFSMOUNT_LG_BRLOCK")
+    if test x"$vfsmount_lock_lock" != x""  && test "$lg_local_lock" == ""  ; then
+        AC_MSG_RESULT([vfsmount lock is BRLOCK])
+        AC_SUBST(vfsmntlock, "-DTALPA_USE_VFSMOUNT_LOCK -DTALPA_VFSMOUNT_LOCK_BRLOCK")
+    elif test x"$vfsmount_lock_lock" != x""  && test "$lg_local_lock" != ""  ; then
+        AC_MSG_RESULT([vfsmount lock is LG_BRLOCK])
+        AC_SUBST(vfsmntlock, "-DTALPA_USE_VFSMOUNT_LOCK -DTALPA_VFSMOUNT_LG_BRLOCK")
     elif test x"$mount_lock" != x"" ; then
-		AC_MSG_RESULT([vfsmount lock is mount_lock seqlock])
+        AC_MSG_RESULT([vfsmount lock is mount_lock seqlock])
         AC_SUBST(vfsmntlock, "-DTALPA_USE_MOUNT_LOCK -DTALPA_MOUNT_LOCK_ADDR=0x$mount_lock")
- 	elif test x"$vfsmount_lock_lock" == x"" ; then
-		AC_MSG_RESULT([vfsmount lock is spinlock])
-		# Find vfsmnt_lock address
-		AC_MSG_CHECKING([for vfsmount_lock address])
-		vfsmnt_lock_addr=`${EGREP} " vfsmount_lock\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
-		if test "$vfsmnt_lock_addr" != ""; then
-			AC_MSG_RESULT([0x$vfsmnt_lock_addr])
-			AC_SUBST(vfsmntlock, "-DTALPA_USE_VFSMOUNT_LOCK -DTALPA_VFSMOUNT_LOCK_ADDR=0x$vfsmnt_lock_addr")
-		else
-			AC_MSG_ERROR([not found])
-		fi
-	else
-		AC_MSG_ERROR([not found])
-	fi
+    elif test x"$vfsmount_lock_lock" == x"" ; then
+        AC_MSG_RESULT([vfsmount lock is spinlock])
+        # Find vfsmnt_lock address
+        AC_MSG_CHECKING([for vfsmount_lock address])
+        vfsmnt_lock_addr=`${EGREP} " vfsmount_lock\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
+        if test "$vfsmnt_lock_addr" != ""; then
+            AC_MSG_RESULT([0x$vfsmnt_lock_addr])
+            AC_SUBST(vfsmntlock, "-DTALPA_USE_VFSMOUNT_LOCK -DTALPA_VFSMOUNT_LOCK_ADDR=0x$vfsmnt_lock_addr")
+        else
+            AC_MSG_ERROR([not found])
+        fi
+    else
+        AC_MSG_ERROR([not found])
+    fi
 
+    if test $((kern_version_code)) -ge 199936; then
+        ## 3.13+
+        ## Needed to count mount points
+        AC_MSG_CHECKING([for __lookup_mnt_last address])
+        lookup_mnt_last_val=`${EGREP} " __lookup_mnt_last\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
+        if test x"$lookup_mnt_last_val" != x""
+        then
+            AC_MSG_RESULT([0x$lookup_mnt_last_val])
+            AC_SUBST(lookup_mnt_last, "-DTALPA_SHARED_MOUNTS -DTALPA_HAVE_LOOKUP_MNT_LAST -DTALPA__LOOKUP_MNT_LAST=0x$lookup_mnt_last_val")
+        else
+            AC_MSG_ERROR([not found])
+        fi
+    elif test $((kern_version_code)) -ge 132623; then
+        ## 2.6.15 - 3.12
+        AC_MSG_CHECKING([for __lookup_mnt address])
+        lookup_mnt_val=`${EGREP} " __lookup_mnt\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
+        if test x"$lookup_mnt_val" != x""
+        then
+            AC_MSG_RESULT([0x$lookup_mnt_val])
+            AC_SUBST(lookup_mnt_last, "-DTALPA_SHARED_MOUNTS -DTALPA_HAVE_LOOKUP_MNT -DTALPA__LOOKUP_MNT=0x$lookup_mnt_val")
+        else
+            AC_MSG_ERROR([not found])
+        fi
+    else
+        AC_SUBST(lookup_mnt_last, "")
+    fi
+
+    if test $((kern_version_code)) -ge 132623; then
+        ## 2.6.15+
+        # vfsmount's namespace element changed from mnt_namespace to mnt_ns in 2.6.20
+        TALPA_LOCATE_HEADER(linux/mount.h, $kernelhdrspath)
+        AC_MSG_CHECKING([for vfsmount mnt_namespace element])
+        if ${EGREP} "struct namespace \*mnt_namespace;" $TALPA_HEADER_LOCATION/linux/mount.h >/dev/null 2>&1; then
+            AC_MSG_RESULT([vfsmount has mnt_namespace])
+            AC_SUBST(vfsmount_namespace, "-DTALPA_VFSMOUNT_NAMESPACE=mnt_namespace")
+        else
+            AC_MSG_RESULT([assuming vfsmount has mnt_ns])
+            AC_SUBST(vfsmount_namespace, "-DTALPA_VFSMOUNT_NAMESPACE=mnt_ns")
+        fi
+    else
+        AC_SUBST(vfsmount_namespace, "")
+    fi
 
     # some 2.6 kernels do not export do_execve (vanilla >=2.6.10 and some vendor ones)
     AC_MSG_CHECKING([for syscallhook module execve support])
@@ -1242,23 +1353,43 @@ if test $((kern_version_code)) -ge 132608; then
 
     # Autodetect if struct inode uses mutexes
     # < 2.6.16
-    if test $((kern_version_code)) -lt 132624 -a "$mutexes" != ""; then
-        if test "$auto_inodemutex" = "yes"; then
-            TALPA_LOCATE_HEADER(linux/fs.h, $kernelhdrspath, /bin/true, /bin/false , [quiet])
-            AC_MSG_CHECKING([for i_mutex inode struct member])
-            ${EGREP} i_mutex\; $TALPA_HEADER_LOCATION/linux/fs.h >/dev/null 2>&1
-            if test $? -eq 0; then
-                AC_MSG_RESULT([detected])
-                AC_SUBST(inodemutex,"-DTALPA_INODE_USES_MUTEXES")
-            else
-                AC_MSG_RESULT([not detected])
+    TALPA_LOCATE_HEADER(linux/fs.h, $kernelhdrspath, /bin/true, /bin/false , [quiet])
+    ${EGREP} " inode_lock_nested" $TALPA_HEADER_LOCATION/linux/fs.h >/dev/null 2>&1
+    if test $? -eq 0; then
+        AC_SUBST(inodemutex,"-DTALPA_INODE_USES_INODE_LOCK")
+    elif test "$mutexes" != ""
+    then
+        if test $((kern_version_code)) -lt 132624
+        then
+            if test "$auto_inodemutex" = "yes"; then
+                AC_MSG_CHECKING([for i_mutex inode struct member])
+                ${EGREP} i_mutex\; $TALPA_HEADER_LOCATION/linux/fs.h >/dev/null 2>&1
+                if test $? -eq 0; then
+                    AC_MSG_RESULT([detected])
+                    AC_SUBST(inodemutex,"-DTALPA_INODE_USES_MUTEXES")
+                else
+                    AC_MSG_RESULT([not detected])
+                    AC_SUBST(inodemutex,"-DTALPA_INODE_USES_SEMAPHORES")
+                fi
             fi
-        fi
-    else
-        if test "$mutexes" != ""; then
+        else
             # Kernels starting with 2.6.16 use them
             AC_SUBST(inodemutex,"-DTALPA_INODE_USES_MUTEXES")
         fi
+    else
+        AC_SUBST(inodemutex,"-DTALPA_INODE_USES_SEMAPHORES")
+    fi
+
+
+    # Autodetect if fdentry is defined in fs structure
+    TALPA_LOCATE_HEADER(linux/fs.h, $kernelhdrspath, /bin/true, /bin/false , [quiet])
+    AC_MSG_CHECKING([for f_dentry in fs struct member])
+    ${EGREP} f_dentry $TALPA_HEADER_LOCATION/linux/fs.h >/dev/null 2>&1
+    if test $? -eq 0; then
+        AC_MSG_RESULT([detected])
+        AC_SUBST(fdentry,"-DTALPA_FDENTRY_DEFINED")
+    else
+        AC_MSG_RESULT([not detected])
     fi
 
     # Autodetect if struct inode has i_private field
@@ -1820,10 +1951,35 @@ if test $((kern_version_code)) -ge 132608; then
         fi
     fi
 
+    AC_MSG_CHECKING([for getname])
+    ${EGREP} "\s+getname.*EXPORT_SYMBOL" ${symvers} >/dev/null 2>&1
+    if test $? -eq 0 ; then
+        AC_MSG_RESULT([getname present and exported])
+        AC_SUBST(getname,"-DTALPA_GETNAME_SYMBOL -DTALPA_GETNAME_EXPORTED")
+    else
+        getname_addr=`${EGREP} " getname\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
+        if test "$getname_addr" != ""; then
+            AC_MSG_RESULT([getname present but not exported])
+            AC_SUBST(getname, "-DTALPA_GETNAME_SYMBOL -DTALPA_GETNAME_ADDRESS=0x$getname_addr")
+        fi
+    fi
+
+
+    # Autodetect ctl_table  typdef
+    TALPA_LOCATE_HEADER(linux/sysctl.h, $kernelhdrspath, , , [quiet])
+    AC_MSG_CHECKING([typedef ctl_table])
+    if ${EGREP} -q "typedef struct ctl_table ctl_table" "$TALPA_HEADER_LOCATION/linux/sysctl.h" 2>/dev/null; then
+        AC_MSG_RESULT([detected])
+        AC_SUBST(ctltable,"-DTALPA_HAS_CTLTABLE")
+    else
+        AC_MSG_RESULT([not detected])
+    fi
+
     ${SED} -e  "s/@talpaversion@/${talpaversion}/; \
                 s/@debug@/${debug}/; \
                 s/@assert@/${assert}/; \
                 s/@bool@/${bool}/; \
+                s/@ctltable@/${ctltable}/; \
                 s/@freetaskflag@/${freetaskflag}/; \
                 s/@dpath@/${dpath}/; \
                 s/@newparent@/${newparent}/; \
@@ -1835,6 +1991,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@rcubackport@/${rcubackport}/; \
                 s/@mutexes@/${mutexes}/; \
                 s/@inodemutex@/${inodemutex}/; \
+                s/@fdentry@/${fdentry}/; \
                 s/@inodeiprivate@/${inodeiprivate}/; \
                 s/@signalbackport@/${signalbackport}/; \
                 s/@jiffiesbackport@/${jiffiesbackport}/; \
@@ -1861,20 +2018,25 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@nopasymbol@/${nopasymbol}/; \
                 s/@kfuncchpgattraddr@/${kfuncchpgattraddr}/; \
                 s/@notasklistlock@/${notasklistlock}/; \
+                s/@probe_kernel_read@/${probe_kernel_read}/; \
                 s/@vfsmntlock@/${vfsmntlock}/; \
                 s/@samefile@/${samefile}/; \
                 s/@buildprocfs@/${buildprocfs}/; s/@binarysysctl@/${binarysysctl}/; \
                 s/@buildsecurityfs@/${buildsecurityfs}/; s/@securityfs@/${securityfs}/; \
                 s/@buildsymbolver@/${buildsymbolver}/; \
                 s/@putname@/${putname}/; \
+                s/@getname@/${getname}/; \
                 s/@strdupuser@/${strdupuser}/; \
                 s/@linuxuidgid@/${linuxuidgid}/; \
+                s/@lookup_mnt_last@/${lookup_mnt_last}/; \
+                s/@vfsmount_namespace@/${vfsmount_namespace}/; \
                 s/@builddualfs@/${builddualfs}/; s/@dualfs@/${dualfs}/;" ${srcdir}/Makefile26.in >${srcdir}/Makefile
 
     ${SED} -e  "s/@talpaversion@/${talpaversion}/; \
                 s/@debug@/${debug}/; \
                 s/@assert@/${assert}/; \
                 s/@bool@/${bool}/; \
+                s/@ctltable@/${ctltable}/; \
                 s/@freetaskflag@/${freetaskflag}/; \
                 s/@dpath@/${dpath}/; \
                 s/@newparent@/${newparent}/; \
@@ -1886,6 +2048,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@rcubackport@/${rcubackport}/; \
                 s/@mutexes@/${mutexes}/; \
                 s/@inodemutex@/${inodemutex}/; \
+                s/@fdentry@/${fdentry}/; \
                 s/@inodeiprivate@/${inodeiprivate}/; \
                 s/@signalbackport@/${signalbackport}/; \
                 s/@jiffiesbackport@/${jiffiesbackport}/; \
@@ -1912,16 +2075,24 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@nopasymbol@/${nopasymbol}/; \
                 s/@kfuncchpgattraddr@/${kfuncchpgattraddr}/; \
                 s/@notasklistlock@/${notasklistlock}/; \
+                s/@probe_kernel_read@/${probe_kernel_read}/; \
                 s/@vfsmntlock@/${vfsmntlock}/; \
                 s/@samefile@/${samefile}/; \
                 s/@buildprocfs@/${buildprocfs}/; s/@binarysysctl@/${binarysysctl}/; \
                 s/@buildsecurityfs@/${buildsecurityfs}/; s/@securityfs@/${securityfs}/; \
                 s/@putname@/${putname}/; \
+                s/@getname@/${getname}/; \
                 s/@strdupuser@/${strdupuser}/; \
                 s/@linuxuidgid@/${linuxuidgid}/; \
                 s/@builddualfs@/${builddualfs}/; \
                 s!@linuxmagicinclude@!${linuxmagicinclude}!; \
+                s!@linuxuapimagicinclude@!${linuxuapimagicinclude}!; \
                 s!@linuxcompilerinclude@!${linuxcompilerinclude}!; \
+                s!@uapiunistdinclude@!${uapiunistdinclude}!; \
+                s!@unistd64x32include@!${unistd64x32include}!; \
+                s!@autoconf_h_include@!${autoconf_h_include}!; \
+                s/@lookup_mnt_last@/${lookup_mnt_last}/; \
+                s/@vfsmount_namespace@/${vfsmount_namespace}/; \
                 s/@dualfs@/${dualfs}/;" ${srcdir}/tests/modules/Makefile26.in >${srcdir}/tests/modules/Makefile
 else
     AC_MSG_RESULT([2.4 build system detected])

@@ -5,6 +5,7 @@ EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../incl
                 @debug@ \
 		@assert@ \
 		@bool@ \
+		@ctltable@ \
 		@freetaskflag@ \
                 @dpath@ \
 		@printkaddr@ \
@@ -13,6 +14,7 @@ EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../incl
 		@rcubackport@ \
 		@mutexes@ \
 		@inodemutex@ \
+		@fdentry@ \
 		@inodeiprivate@ \
 		@signalbackport@ \
                 @jiffiesbackport@ \
@@ -25,7 +27,7 @@ EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../incl
 		@hidden@ \
 		@execve@ \
 		@xhack@ \
-        @structfilename@ \
+		@structfilename@ \
 		@hrtimers@ \
 		@imapathcheck@ \
 		@rodata@ \
@@ -37,12 +39,16 @@ EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../incl
 		@vfsmntlock@ \
 		@samefile@ \
 		@filldirbackport@ \
+		@probe_kernel_read@ \
 		@binarysysctl@ \
 		@securityfs@ \
 		@linuxuidgid@ \
 		@dualfs@ \
 		@putname@ \
-		@vfsunlink@
+		@getname@ \
+		@vfsunlink@ \
+		@lookup_mnt_last@ \
+		@vfsmount_namespace@
 
 obj-m :=    tlp-personality.o \
             tlp-fileinfo.o \

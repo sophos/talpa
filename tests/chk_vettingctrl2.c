@@ -16,6 +16,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -38,7 +39,6 @@ int main(int argc, char *argv[])
     const unsigned int tout = 2;
     int talpa;
     struct TalpaPacket_VettingDetails* details;
-    int ret = 0;
     time_t start;
     time_t end;
 
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     }
 
     start = time(NULL);
-    while ( time(NULL) != start );
+    while ( time(NULL) == start );
     start = time(NULL);
     details = vc_get(talpa);
     end = time(NULL);
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    if ( ! ((tout-1) <= abs(end-start) <= (tout+1)) )
+    if ( ! ((tout-1) <= abs(end-start) && abs(end-start) <= (tout+1)) )
     {
         fprintf(stderr, "Timeout error (%d (%d))!\n", abs(end-start), tout);
         vc_exit(talpa);

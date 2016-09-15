@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -104,6 +104,13 @@ static inline char *talpa_alloc_path(size_t *size)
     *size = PAGE_SIZE;
 
     return (char *)__get_free_pages(GFP_KERNEL, 0);
+}
+
+static inline char *talpa_alloc_path_atomic(size_t *size)
+{
+    *size = PAGE_SIZE;
+
+    return (char *)__get_free_pages(GFP_ATOMIC, 0);
 }
 
 static inline void talpa_free_path(char *buf)

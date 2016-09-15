@@ -3,7 +3,7 @@
 *
 * TALPA Filesystem Interceptor
 *
-* Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+* Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
 *
 * This program is free software; you can redistribute it and/or modify it under the terms of the
 * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -25,6 +25,11 @@
 #include <linux/string.h>
 #include <linux/tty.h>
 #include <linux/fs_struct.h>
+
+#ifdef TALPA_HAS_PROBE_KERNEL_READ
+# include <linux/uaccess.h>
+#endif
+
 #include <asm/uaccess.h>
 
 #include "common/talpa.h"
@@ -161,12 +166,29 @@ LinuxThreadInfo* newLinuxThreadInfo(void)
             object->mEnv = talpa_alloc(object->mEnvSize);
             if ( likely(object->mEnv != NULL) )
             {
-                /* This should be safe since we are accessing our memory
-                   from the same process context */
-                if ( copy_from_user(object->mEnv, (void *)mm->env_start, object->mEnvSize) )
+#ifdef TALPA_HAS_PROBE_KERNEL_READ
+                if ( probe_kernel_read(object->mEnv, (void *)mm->env_start, object->mEnvSize) )
                 {
                     err("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
+                    talpa_free(object->mEnv);
+                    object->mEnv = NULL;
+                    object->mEnvSize = 0;
                 }
+#else
+                /* Don't have probe_kernel_read (2.6.32+) */
+                if ( likely (down_read_trylock(&mm->mmap_sem) ) )
+                {
+                    /* We are not within munmap which holds the write lock */
+                    up_read(&mm->mmap_sem); /* We don't actually need the lock while calling copy_from_user */
+                    if ( copy_from_user(object->mEnv, (void *)mm->env_start, object->mEnvSize) )
+                    {
+                        err("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
+                        talpa_free(object->mEnv);
+                        object->mEnv = NULL;
+                        object->mEnvSize = 0;
+                    }
+                }
+#endif
             }
             else
             {

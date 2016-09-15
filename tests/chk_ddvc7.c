@@ -15,6 +15,9 @@
  *
  */
 
+#include <config.h>
+#include <configure/autoconf.h>
+
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>

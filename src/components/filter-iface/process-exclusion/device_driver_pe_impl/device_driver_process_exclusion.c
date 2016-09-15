@@ -39,6 +39,19 @@
   #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,3,0)
+    int sophos_misc_deregister(struct miscdevice *misc)
+    {
+        return misc_deregister(misc);
+    }
+#else
+    int sophos_misc_deregister(struct miscdevice *misc)
+    {
+        misc_deregister(misc);
+        return 0;
+    }
+#endif
+
 #define TALPA_SUBSYS "pedevice"
 #include "common/talpa.h"
 #include "platforms/linux/alloc.h"
@@ -176,7 +189,7 @@ DeviceDriverProcessExclusion* newDeviceDriverProcessExclusion(void)
 fail2:
     ret |= unregister_ioctl32_conversion(TLPPEIOC_ACTIVE);
 fail1:
-    ret |= misc_deregister(&ddpe_dev);
+    ret |= sophos_misc_deregister(&ddpe_dev);
     err("Failed to register compatibility ioctl handler!");
     if ( ret )
     {
@@ -203,8 +216,7 @@ static void deleteDeviceDriverProcessExclusion(struct tag_DeviceDriverProcessExc
     }
 #endif
 
-    ret = misc_deregister(&ddpe_dev);
-
+    ret = sophos_misc_deregister(&ddpe_dev);
     if ( ret )
     {
         err("Failed to unregister character device in destructor!");

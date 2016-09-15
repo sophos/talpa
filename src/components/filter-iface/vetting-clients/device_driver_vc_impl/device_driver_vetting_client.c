@@ -39,6 +39,19 @@
   #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,3,0)
+    int sophos_misc_deregister(struct miscdevice *misc)
+    {
+        return misc_deregister(misc);
+    }
+#else
+    int sophos_misc_deregister(struct miscdevice *misc)
+    {
+        misc_deregister(misc);
+        return 0;
+    }
+#endif
+
 #define TALPA_SUBSYS "vcdevice"
 #include "common/talpa.h"
 #include "platform/alloc.h"
@@ -189,7 +202,7 @@ fail3:
 fail2:
     ret |= unregister_ioctl32_conversion(TLPVCIOC_REGISTER);
 fail1:
-    ret |= misc_deregister(&ddvc_dev);
+    ret |= sophos_misc_deregister(&ddvc_dev);
     err("Failed to register compatibility ioctl handler!");
     if ( ret )
     {
@@ -217,8 +230,8 @@ static void deleteDeviceDriverVettingClient(struct tag_DeviceDriverVettingClient
             err("Failed to un-register compatibility ioctl handler!");
         }
 #endif
-        ret = misc_deregister(&ddvc_dev);
 
+        ret = sophos_misc_deregister(&ddvc_dev);
         if ( ret )
         {
             err("Failed to unregister misc device in destructor!");

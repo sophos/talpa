@@ -17,12 +17,21 @@
 
 . ${srcdir}/tlp-cleanup.sh
 
-if su -c /bin/true nobody; then
+if su -s /bin/sh -c /bin/true nobody; then
     rm -f /tmp/talpa-file-object-test-file 2>/dev/null
     tlp_insmod modules/tlp-file.${ko}
-    chmod 555 tlp-6-029
-    chown nobody tlp-6-029
-    su -c ./tlp-6-029 nobody
+
+    # put the testfile somewhere where 'nobody' can run it
+    tmpdir=/tmp/tlp-test
+    mkdir -p ${tmpdir}
+    chmod 755 ${tmpdir}
+
+    testfile=${tmpdir}/tlp-6-029
+    cp ${srcdir}/tlp-6-029 ${testfile}
+    chmod 555 ${testfile}
+    chown nobody ${testfile}
+
+    su -s /bin/sh -c ${testfile} nobody
     rc=$?
     if [ $rc -eq 0 ]; then
         exit 0

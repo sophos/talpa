@@ -19,8 +19,9 @@
 
 mkdir -p /tmp/tlp-test
 dd if=/dev/zero of=/tmp/tlp-test/file bs=1k count=128 1>/dev/null 2>&1
-cp -a /bin/true /tmp/tlp-test/
-cp -a /bin/bash /tmp/tlp-test/
+
+cp -a $(which true) /tmp/tlp-test/
+cp -a $(which bash) /tmp/tlp-test/
 cp -a ${srcdir}/test-script*.sh /tmp/tlp-test/
 
 talpa_load

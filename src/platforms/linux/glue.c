@@ -36,6 +36,7 @@
 
 #include "platforms/linux/glue.h"
 #include "platforms/linux/log.h"
+#include "platforms/linux/vfs_mount.h"
 
 #if defined(TALPA_DPATH_PATH) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
 #define TALPA_D_DNAME_DIRECT_DPATH
@@ -156,8 +157,7 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dent
     struct path pathPath;
     struct path rootPath;
 #   endif
-#endif
-
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0) || (defined TALPA_HAS_DPATH) */
 
 #if defined HOLD_DCACHE_LOCK_WHILE_CALLING_D_PATH
     spin_lock(&dcache_lock);
@@ -175,9 +175,18 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dent
 #if defined TALPA_D_DNAME_DIRECT_DPATH
     if (dentry->d_op && dentry->d_op->d_dname)
     {
-        return d_path(&pathPath, buffer, buflen);
+        path = d_path(&pathPath, buffer, buflen);
+        if ( unlikely( IS_ERR(path) != 0 ) )
+        {
+            critical("talpa__d_path: d_path returned an error: %ld",PTR_ERR(path));
+            path = NULL;
+        }
+        if ( NULL != path )
+        {
+            return path;
+        }
     }
-#endif
+#endif /* TALPA_D_DNAME_DIRECT_DPATH */
 
 #   if defined TALPA_DPATH_SLES11
     path = kernel_d_path(&pathPath, &rootPath, buffer, buflen, 0);
@@ -199,13 +208,21 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dent
 
     if ( unlikely( IS_ERR(path) != 0 ) )
     {
-        critical("talpa__d_path: kernel_d_path returned an error: %ld",PTR_ERR(path));
+        critical("talpa__d_path: kernel__d_path returned an error: %ld",PTR_ERR(path));
         path = NULL;
     }
     else if ( unlikely( NULL == path ) )
     {
 #ifdef TALPA_D_DNAME_DIRECT_DPATH
+        /* only use this as a fall-back, it will only return the relative path from a chroot
+         * Use this in cases where kernel_d_path fails to return a valid path for bind mounts
+         * in newer kernel in a systemd environment */
         path = d_path(&pathPath, buffer, buflen);
+        if ( unlikely( IS_ERR(path) != 0 ) )
+        {
+            critical("talpa__d_path: kernel_d_path returned an error: %ld",PTR_ERR(path));
+            path = NULL;
+        }
         dbg("    dpath=%s",path);
 
         if (dentry->d_op && dentry->d_op->d_dname)
@@ -229,11 +246,27 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dent
         {
             if (!IS_ROOT(dentry) && d_unhashed(dentry))
             {
-                dbg ("    talpa__d_path: kernel_d_path returned NULL but d_path returned path %s for deleted file",path);
+                dbg("    talpa__d_path: kernel_d_path returned NULL but d_path returned path %s for deleted file",path);
             }
             else
             {
-                info("    talpa__d_path: kernel_d_path returned NULL but d_path returned path %s for non-deleted file",path);
+#ifdef TALPA_MNT_NAMESPACE
+                if (NULL != getNamespaceInfo(vfsmnt) && (!S_ISDIR(dentry->d_inode->i_mode)))
+                {
+                    /* we're in a namespace/container, append '(namespace)' to the path */
+                    int pathlen=strlen(path);
+                    if (pathlen + 13 > buflen)
+                    {
+                        return ERR_PTR(-ENAMETOOLONG);
+                    }
+                    memmove(buffer, path, pathlen);
+                    path = buffer;
+                    memcpy(buffer + pathlen, " (namespace)", 13);
+                }
+#endif
+
+                /* the systemd / containers / bind mount case. */
+                dbg("    talpa__d_path: kernel_d_path returned NULL but d_path returned path %s for non-deleted file",path);
             }
         }
     }
@@ -329,6 +362,18 @@ void talpa_putname(TALPA_FILENAME_T* filename)
     typedef void(*putname_func)(TALPA_FILENAME_T *);
     putname_func putname = (putname_func)talpa_get_symbol("putname", (void *)TALPA_PUTNAME_ADDRESS);
     putname(filename);
+}
+#endif
+
+#ifndef TALPA_GETNAME_EXPORTED
+TALPA_FILENAME_T * talpa_getname(const char * filename )
+{
+    /*
+     * Uses putname if available, or final_putname - but they come from the same define
+     */
+    typedef TALPA_FILENAME_T * (*getname_func)(const char * filename);
+    getname_func getname = (getname_func)talpa_get_symbol("getname", (void *)TALPA_GETNAME_ADDRESS);
+    return(getname(filename));
 }
 #endif
 

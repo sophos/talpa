@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
         int fd;
         int ret;
 
-        fd = open(argv[1], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+        fd = open(tmpfile, O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
         if (fd < 0) {
             perror("Setup failed (provide filename, run as root)");
             return 1;

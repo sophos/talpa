@@ -61,9 +61,8 @@ int main(int argc, char *argv[])
     if ( !rc )
     {
         int fd;
-        int ret;
 
-        fd = open(argv[1], O_RDWR | O_CREAT | O_EXCL, 0);
+        fd = open(tmpfile, O_RDWR | O_CREAT | O_EXCL, 0);
         if (fd < 0) {
             perror("Open failed");
             return 1;

@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright(C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright(C) 2004-2016 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -185,7 +185,7 @@ static unsigned long rodata_end = TALPA_RODATA_END;
 static unsigned long rodata_end;
   #endif
 
-static long rwdata_offset;
+static long rwdata_offset = 0;
 #endif
 
 #if defined(TALPA_HAS_RODATA) && !defined(TALPA_RODATA_MAP_WRITABLE)
@@ -268,6 +268,7 @@ static int _talpa_syscallhook_modify_start(void)
     rwshadow = (unsigned long)talpa_syscallhook_unro((void *)rodata_start, rodata_end - rodata_start, 1);
     if (!rwshadow)
     {
+        dbg("RODATA: failed to map (0x%p - 0x%p)", (void *)rodata_start, (void *)rodata_end);
         return 1;
     }
     rwdata_offset = rwshadow - rodata_start;
@@ -282,6 +283,7 @@ static void _talpa_syscallhook_modify_finish(void)
     mark_rodata_ro();
   #else
     talpa_syscallhook_unro((void *)(rodata_start + rwdata_offset), rodata_end - rodata_start, 0);
+    rwdata_offset = 0;
   #endif
 
   #ifndef TALPA_RODATA_MAP_WRITABLE
@@ -507,7 +509,7 @@ static asmlinkage long talpa_execve(char __user * name,
     atomic_inc(&usecnt);
     ops = interceptor;
 
-    filename = getname(name);
+    filename = talpa_getname(name);
     error = PTR_ERR(filename);
     if (IS_ERR(filename))
         goto out;
@@ -558,9 +560,9 @@ static asmlinkage int talpa_execve(struct pt_regs regs)
     ops = interceptor;
 
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
-    filename = getname((char *) regs.bx);
+    filename = talpa_getname((char *) regs.bx);
     #else
-    filename = getname((char *) regs.ebx);
+    filename = talpa_getname((char *) regs.ebx);
     #endif
     error = PTR_ERR(filename);
     if (IS_ERR(filename))
@@ -575,10 +577,12 @@ static asmlinkage int talpa_execve(struct pt_regs regs)
         }
     }
 
-    #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
+    #ifdef TALPA_HAS_STRUCT_FILENAME
     error = talpa_do_execve((char *) regs.bx, (char **) regs.cx, (char **) regs.dx, &regs);
+    #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
+    error = talpa_do_execve(filename, (char **) regs.cx, (char **) regs.dx, &regs);
     #else
-    error = talpa_do_execve((char *) regs.ebx, (char **) regs.ecx, (char **) regs.edx, &regs);
+    error = talpa_do_execve(filename, (char **) regs.ecx, (char **) regs.edx, &regs);
     #endif
     if (error == 0)
     {
@@ -765,7 +769,7 @@ static void **get_start_addr(void)
     #error "Syscall table address not built in"
   #endif
 #endif
-    err("Syscall searching not available for 2.6.39+");
+    dbg("Syscall searching not available for 2.6.39+");
     return (void **)0;
 }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
@@ -813,7 +817,7 @@ static void **get_start_addr_ia32(void)
     #error "Syscall32 table address not built in"
   #endif
 #endif
-    err("Syscall searching not available for 2.6.39+");
+    dbg("Syscall searching not available for 2.6.39+");
     return (void **)0;
 }
 #else /* ! LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,39) */
@@ -1240,7 +1244,11 @@ static int find_syscall_table(void)
 
         if (startaddr == NULL)
         {
-            err("Trying to search for syscall32_table and no search start position specified");
+            #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,39)
+                err("The syscall32_table value is not valid, you will need to reboot your system");
+            #else
+                err("The syscall32_table value is not valid");
+            #endif
             return -EFAULT;
         }
 
@@ -1306,7 +1314,12 @@ static int find_syscall_table(void)
 
         if (startaddr == NULL)
         {
-            err("Trying to search for syscall_table and no search start position specified");
+            #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,39)
+                err("The syscall_table value is not valid, you will need to reboot your system");
+            #else
+                err("The syscall_table value is not valid");
+            #endif
+
             return -EFAULT;
         }
 

@@ -309,7 +309,11 @@ void talpa_putname(TALPA_FILENAME_T* filename);
 # define talpa_putname putname
 #endif
 
-
+#ifndef TALPA_GETNAME_EXPORTED
+TALPA_FILENAME_T * talpa_getname(const char * filename);
+#else
+# define talpa_getname getname
+#endif
 /**
  * Implement our own copy, since kernel 3.12 gets rid of this exported function
  */
@@ -354,6 +358,10 @@ static inline gid_t __talpa_kgid_val(talpa_kgid_t gid)
 #define TALPA_KGIDT_INIT(value) ((talpa_kgid_t) value )
 
 #endif /* ! HAVE_LINUXUIDGID */
+
+#ifndef TALPA_FDENTRY_DEFINED
+#define f_dentry f_path.dentry
+#endif /* TALPA_FDENTRY_DEFINED */
 
 #endif /* H_LINUXGLUE */
 /*

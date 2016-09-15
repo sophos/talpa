@@ -21,6 +21,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+
+
+#include <config.h>
+#include <configure/autoconf.h>
+
 #include <unistd.h>
 #include <sys/mount.h>
 #include <linux/unistd.h>
@@ -95,7 +100,7 @@ int main(int argc, char *argv[])
 #ifdef SYS_gettid
     if ( syscall(SYS_gettid) != thread.tid )
     {
-        fprintf(stderr,"TID mismatch! %d != %d\n", syscall(SYS_gettid), thread.tid);
+        fprintf(stderr,"TID mismatch! %d != %d\n", (int)syscall(SYS_gettid), thread.tid);
         close(fd);
         return 1;
     }
@@ -113,7 +118,7 @@ int main(int argc, char *argv[])
 
     if ( envsize != thread.envsize )
     {
-        fprintf(stderr, "Env size mismatch %d != %d\n", envsize, thread.envsize);
+        fprintf(stderr, "Env size mismatch %d != %d\n", envsize, (int)thread.envsize);
         close(fd);
         return 1;
     }
@@ -123,18 +128,18 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Env content mismatch!\n");
         close(fd);
          dump_env(env,envsize);
-         dump_env(thread.env, thread.envsize);
+         dump_env((char*) thread.env, thread.envsize);
         return 1;
     }
 
     sfd = open("/proc/self/stat",O_RDONLY);
     read(sfd,sb,sizeof(sb));
     close(sfd);
-    sscanf(sb, "%*u %*s %*s %*u %*u %*u %u", &tty);
+    sscanf(sb, "%*u %*s %*s %*u %*u %*u %lu", &tty);
 
     if ( tty != thread.tty )
     {
-        fprintf(stderr, "Controlling TTY mismatch %d != %d\n", tty, thread.tty);
+        fprintf(stderr, "Controlling TTY mismatch %ld != %ld\n", tty, thread.tty);
         close(fd);
         return 1;
     }

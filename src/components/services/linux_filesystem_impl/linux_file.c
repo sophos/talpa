@@ -30,11 +30,18 @@
 #include <linux/smp_lock.h>
 #endif
 
+#if defined TALPA_INODE_USES_INODE_LOCK
+#include <linux/fs.h>
+#endif
+
 #if defined TALPA_INODE_USES_MUTEXES
 #include <linux/mutex.h>
-#else
+#endif
+
+#ifdef TALPA_INODE_USES_SEMAPHORES
 #include <asm/semaphore.h>
 #endif
+
 #ifdef CONFIG_IMA
 #include <linux/ima.h>
 #endif
@@ -582,6 +589,32 @@ static ssize_t write(void* self, const void* data, size_t count)
     return retval;
 }
 
+static void talpa_inode_lock(struct inode* i)
+{
+#ifdef TALPA_INODE_USES_INODE_LOCK
+    inode_lock_nested(i, I_MUTEX_PARENT);
+#elif defined TALPA_INODE_USES_MUTEXES
+  #if defined TALPA_HAS_NESTED_MUTEX
+    mutex_lock_nested(&i->i_mutex, I_MUTEX_PARENT);
+  #else
+    mutex_lock(&i->i_mutex);
+  #endif
+#else
+    down(&i->i_sem);
+#endif
+}
+
+static void talpa_inode_unlock(struct inode* i)
+{
+#ifdef TALPA_INODE_USES_INODE_LOCK
+    inode_unlock(i);
+#elif defined TALPA_INODE_USES_MUTEXES
+    mutex_unlock(&i->i_mutex);
+#else
+    up(&i->i_sem);
+#endif
+}
+
 static int unlink(void* self)
 {
     int error;
@@ -619,16 +652,10 @@ static int unlink(void* self)
         return -ENOENT;
     }
 
-#if defined TALPA_INODE_USES_MUTEXES
-  #if defined TALPA_HAS_NESTED_MUTEX
-    mutex_lock_nested(&parenti->i_mutex, I_MUTEX_PARENT);
-  #else
-    mutex_lock(&parenti->i_mutex);
-  #endif
-#else
-    down(&parenti->i_sem);
-#endif
+    talpa_inode_lock(parenti);
+
     atomic_inc(&parenti->i_count);
+
 #if defined TALPA_VFSUNLINK_SUSE103
     error = vfs_unlink(parenti, filed, mntget(this->mFile->f_vfsmnt));
     mntput(this->mFile->f_vfsmnt);
@@ -639,11 +666,9 @@ static int unlink(void* self)
 #else
     error = vfs_unlink(parenti, filed);
 #endif
-#if defined TALPA_INODE_USES_MUTEXES
-    mutex_unlock(&parenti->i_mutex);
-#else
-    up(&parenti->i_sem);
-#endif
+
+    talpa_inode_unlock(parenti);
+
     iput(parenti);
     dput(parentd);
     dput(filed);

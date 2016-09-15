@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -762,7 +762,7 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
                     }
                     else
                     {
-                        err("[intercepted %u-%u-%u] failed to openDentry %d - trying open of %s",processParentPID(current), current->tgid, current->pid, ret,local_filename);
+                        dbg("[intercepted %u-%u-%u] failed to openDentry %d - trying open of %s",processParentPID(current), current->tgid, current->pid, ret,local_filename);
                         ret = details->file->open(file->object, local_filename, openFlags, operation != EFS_Close);
                         /* We cannot distinguish between open and exec with vfs interceptor
                         so it is possible that this failed because of the lack of read permission.
@@ -776,7 +776,7 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
                 }
                 else
                 {
-                    err("[intercepted %u-%u-%u] failed to openDentry %d - can't open %s due to process exiting",processParentPID(current), current->tgid, current->pid, ret,local_filename);
+                    dbg("[intercepted %u-%u-%u] failed to openDentry %d - can't open %s due to process exiting",processParentPID(current), current->tgid, current->pid, ret,local_filename);
                 }
 #endif
             }
@@ -1434,28 +1434,31 @@ static void destroyClient(void* self, VettingClient* client)
 }
 
 #define pktreturn_ok \
+do \
 { \
     client->response.header.type = TALPA_PKT_OK; \
     client->response.header.payloadLength = 0; \
     return &client->response.header; \
-}
+} while (0)
 
 #define pktreturn_fail(code) \
+do \
 { \
     client->response.header.type = TALPA_PKT_FAIL; \
     client->response.header.payloadLength = 1; \
-    client->response.errorCode = code; \
+    client->response.errorCode = (code); \
     return &client->response.header; \
-}
+} while (0)
 
 #define pktreturn_stream(payloadlen, streamlen) \
+do \
 { \
     atomic_set(&client->instream, 1); \
     client->stream->header.payloadLength = (payloadlen); \
     client->stream->size = (streamlen); \
     dbg("stream prepared, packet payload=%u, streamlen=%u", (payloadlen), (streamlen)); \
     return &client->stream->header; \
-}
+} while (0)
 
 
 static struct TalpaProtocolHeader* registerClient(void* self, VettingClient* client, struct TalpaPacket_Register* packet)

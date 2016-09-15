@@ -129,6 +129,7 @@ int main(int argc, char *argv[])
     }
 
     fdetails = vc_file_frag(details);
+    (void) fdetails;
 
     slen = vc_stream_read(talpa, buf, test_len);
 

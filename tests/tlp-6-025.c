@@ -35,6 +35,7 @@ int main(int argc, char *argv[])
     struct talpa_read tr;
     char buf[4096];
     unsigned int len;
+    struct stat st;
     int rfd;
     char buf2[4096];
 
@@ -79,6 +80,21 @@ int main(int argc, char *argv[])
     }
 
     len = ret;
+
+    ret = stat(to.filename, &st);
+    if ( ret < 0 )
+    {
+        fprintf(stderr,"Stat error!\n");
+        close(fd);
+        return 1;
+    }
+
+    if ( len != st.st_size )
+    {
+        fprintf(stderr,"Length mismatch!\n");
+        close(fd);
+        return 1;
+    }
 
     tr.data = buf;
     tr.size = sizeof(buf);

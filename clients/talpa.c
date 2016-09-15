@@ -26,8 +26,8 @@
 
 static char *detect_talpa_root(void)
 {
-    static const char *securityfs = "/sys/kernel/security/talpa";
-    static const char *procfs = "/proc/sys/talpa";
+    static const char securityfs[] = "/sys/kernel/security/talpa";
+    static const char procfs[] = "/proc/sys/talpa";
     static char *root;
     int ret;
     struct stat statbuf;
@@ -52,7 +52,7 @@ static char *get_talpa_device(const char *miscname, const char *container)
 {
     FILE *f;
     int n;
-    int major, minor;
+    unsigned int major, minor;
     int found = 0;
     char devname[256];
     int ret;
@@ -66,7 +66,7 @@ static char *get_talpa_device(const char *miscname, const char *container)
     f = fopen("/proc/misc", "r");
     if ( f ) {
         do {
-            n = fscanf(f, "%d %255s\n", &minor, devname);
+            n = fscanf(f, "%u %255s\n", &minor, devname);
             if ( (n == 2) && !strcmp(miscname, devname) ) {
                 found = 1;
                 break;
@@ -120,7 +120,7 @@ static char *get_talpa_device(const char *miscname, const char *container)
     f = fopen(sflvar, "r");
     if ( f ) {
         do {
-            n = fscanf(f, "%d,%d\n", &major, &minor);
+            n = fscanf(f, "%u,%u\n", &major, &minor);
             if ( n == 2 ) {
                 found = 1;
                 break;

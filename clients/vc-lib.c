@@ -174,6 +174,8 @@ struct TalpaPacket_VettingDetails* vc_poll(int handle, unsigned int ms)
 
 void vc_release(int handle, struct TalpaPacket_VettingDetails* packet)
 {
+    (void) handle; /* we're not using handle */
+
     free(packet);
     return;
 }

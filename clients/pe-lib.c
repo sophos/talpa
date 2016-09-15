@@ -35,7 +35,6 @@ char *get_talpa_pedevice(void);
 
 int pe_init(void)
 {
-    int retried = 0;
     int rc;
     int fd;
     char *devname;

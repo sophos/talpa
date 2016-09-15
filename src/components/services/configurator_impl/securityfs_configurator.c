@@ -69,6 +69,7 @@ SecurityfsConfigurator* newSecurityfsConfigurator(void)
     GL_object.mRoot = securityfs_create_dir("talpa", NULL);
     if ( IS_ERR(GL_object.mRoot) )
     {
+        dbg("securityfs_create_dir failed: %ld", PTR_ERR(GL_object.mRoot));
         return NULL;
     }
 
@@ -207,6 +208,12 @@ static ssize_t securityfsRead(struct file *file, char __user *buf, size_t count,
         return 0;
     }
 
+    if ( !file )
+    {
+        dbg("Attempting to read from null file");
+        return -EBADF;
+    }
+
     element = (struct configurationElement *)file->private_data;
     if ( !element )
     {
@@ -214,13 +221,23 @@ static ssize_t securityfsRead(struct file *file, char __user *buf, size_t count,
     }
 
     item = element->owner;
+    if ( !item )
+    {
+        return -EBADF;
+    }
+
     data = (char *)(item->get(item->object, element->name));
     if (data == NULL)
     {
         return -ENOMEM;
     }
+
     /* Too noisy since we are reading for queue length */
-    /* dbg("reading %s/%s = %s", item->name(item->object), element->name, data); */
+    //~ if ( strncmp(item->name(item->object), "VettingController", 17) != 0 )
+    //~ {
+        //~ dbg("reading %s/%s = %s", item->name(item->object), element->name, data);
+    //~ }
+
     len = strlen(data) + extraNewLine; /* For the new line */
     amountToCopy = len - file->f_pos;
 
@@ -286,6 +303,10 @@ static ssize_t securityfsWrite(struct file *file, const char __user *buf, size_t
     }
 
     item = element->owner;
+    if ( !item )
+    {
+        return -EBADF;
+    }
 
     if ( strnlen_user(buf, count) < 0 )
     {
