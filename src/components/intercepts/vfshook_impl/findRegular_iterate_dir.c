@@ -202,7 +202,12 @@ static struct TalpaFindRegularContext* initialOpenDirectory(const char* dirname,
 
 
     dirFilp = filp_open(dirname, O_RDONLY | O_DIRECTORY, 0);
-    if ( IS_ERR(dirFilp) )
+    if (dirFilp == -ENOTDIR)
+    {
+        /* Mount point isn't a directory */
+        return (struct TalpaFindRegularContext*)dirFilp; /* Error */
+    }
+    else if ( IS_ERR(dirFilp) )
     {
         err("Failed to open initial directory: %ld",PTR_ERR(dirFilp));
         return (struct TalpaFindRegularContext*)dirFilp; /* Error */
@@ -267,7 +272,23 @@ static struct dentry *scanDirectory(const char* dirname, char* buf, size_t bufsi
     };
 
     context = initialOpenDirectory(dirname, overflow, buf, bufsize);
-    if (IS_ERR(context))
+    if (context == -ENOTDIR)
+    {
+        /* mount point isn't a directory, try it as a file */
+        struct path p;
+        error = kern_path(dirname, LOOKUP_NO_AUTOMOUNT, &p);
+
+        if (error == 0)
+        {
+            struct dentry* reg = dget(p.dentry);
+
+            path_put(&p);
+            return reg;
+        }
+        err("mountpoint %s isn't a directory and can't be opened as a file: %ld",dirname,error);
+        return NULL;
+    }
+    else if (IS_ERR(context))
     {
         err("Failed to open initial directory %s: %ld",dirname,PTR_ERR(context));
         return NULL;

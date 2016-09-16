@@ -2707,19 +2707,18 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
         abs_dir = getCStr(dir);
 
 #ifdef TALPA_HANDLE_RELATIVE_PATH_IN_MOUNT
-        if (getCStr(dir)[0] != '/')
+        if (abs_dir[0] != '/')
         {
             /*
              * Rel -> Abs copied from fs/dcache.c syscall - getcwd
              * TODO: We aren't taking the seqlock(&rename_lock)
              * Need to work out whether this will cause us problems
-             *
-             * TODO: This only handles ".", rather than any relative paths.
-             *  mount.cifs uses "."
              */
             struct path pwd, root;
             char *cwd;
             int buflen;
+
+            dbg("talpaPostMount handling relative mount path %s",abs_dir);
 
             /* Relative path provided as mount point - need to make absolute
              */
@@ -2727,6 +2726,7 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
             page = (char *) __get_free_page(GFP_USER);
             if (!page)
             {
+                dbg("talpaPostMount failed to allocate space for absolute path");
                 err = -ENOMEM;
                 goto out;
             }
@@ -2735,9 +2735,15 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
             cwd = page + PAGE_SIZE;
             buflen = PAGE_SIZE;
             prepend(&cwd, &buflen, "\0", 1);
+            if (abs_dir[0] != '.' || abs_dir[1] != '\0')
+            {
+                prepend(&cwd, &buflen, abs_dir, strlen(abs_dir));
+                prepend(&cwd, &buflen, "/", 1);
+            }
             err = prepend_path(&pwd, &root, &cwd, &buflen);
             if ( unlikely( err < 0 ) )
             {
+                dbg("talpaPostMount failed to prepend path (cwd %s) onto relative mount path (%s)",cwd,abs_dir);
                 goto out;
             }
             abs_dir = cwd;
@@ -2749,6 +2755,7 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
 #else
         ret = kern_path(abs_dir, TALPA_LOOKUP, &p);
 #endif
+        /* dbg("talpaPostMount ret=%d abs_dir=%s",ret,abs_dir); */
         talpa_putname(dir); abs_dir = NULL; dir = NULL;
         if ( ret == 0 )
         {
@@ -2834,7 +2841,7 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
         }
         if (flags & VFSHOOK_MS_IGNORE)
         {
-            dbg("Failed to lookup path (%d) for path '%s', filesystem '%s'", ret, abs_dir, type);
+            dbg("talpaPostMount: Failed to lookup path (%d) for path '%s', filesystem '%s'", ret, abs_dir, type);
             ret = 0; // Ignore the error
         }
         else
