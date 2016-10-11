@@ -42,6 +42,7 @@ typedef struct
     const char*           (*fsType)             (const void* self);
     bool                  (*fsObjects)          (const void* self, void** obj1, void** obj2);
     bool                  (*isDeleted)          (const void* self);
+    bool                  (*isNonRootNamespace) (const void* self);
     /*
      *  Object supporting this interface instance.
      */

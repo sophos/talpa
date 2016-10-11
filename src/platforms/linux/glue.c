@@ -223,10 +223,10 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dent
             critical("talpa__d_path: kernel_d_path returned an error: %ld",PTR_ERR(path));
             path = NULL;
         }
-        dbg("    dpath=%s",path);
 
         if (dentry->d_op && dentry->d_op->d_dname)
         {
+            dbg("    dpath=%s",path);
             err("dpath=%s - dentry has d_op and d_dname=%p",path,dentry->d_op->d_dname);
         }
 #endif
@@ -250,23 +250,26 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dent
             }
             else
             {
+                /* the systemd / containers / bind mount case.
+                 *
+                 * Now so common that we don't want to even debug log it
+                 * dbg("    talpa__d_path: kernel_d_path returned NULL but d_path returned path %s for non-deleted file",path);
+                 */
 #ifdef TALPA_MNT_NAMESPACE
-                if (NULL != getNamespaceInfo(vfsmnt) && (!S_ISDIR(dentry->d_inode->i_mode)))
-                {
-                    /* we're in a namespace/container, append '(namespace)' to the path */
-                    int pathlen=strlen(path);
-                    if (pathlen + 13 > buflen)
-                    {
-                        return ERR_PTR(-ENAMETOOLONG);
-                    }
-                    memmove(buffer, path, pathlen);
-                    path = buffer;
-                    memcpy(buffer + pathlen, " (namespace)", 13);
-                }
+                //~ if (NULL != getNamespaceInfo(vfsmnt) && (!S_ISDIR(dentry->d_inode->i_mode)))
+                //~ {
+                    //~ /* we're in a namespace/container, append '(namespace)' to the path */
+                    //~ int pathlen=strlen(path);
+                    //~ if (pathlen + 13 > buflen)
+                    //~ {
+                        //~ return ERR_PTR(-ENAMETOOLONG);
+                    //~ }
+                    //~ memmove(buffer, path, pathlen);
+                    //~ path = buffer;
+                    //~ memcpy(buffer + pathlen, " (namespace)", 13);
+                //~ }
 #endif
 
-                /* the systemd / containers / bind mount case. */
-                dbg("    talpa__d_path: kernel_d_path returned NULL but d_path returned path %s for non-deleted file",path);
             }
         }
     }

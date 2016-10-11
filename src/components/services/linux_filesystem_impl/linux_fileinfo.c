@@ -58,6 +58,7 @@ static const char*           deviceName         (const void* self);
 static const char*           fsType             (const void* self);
 static bool                  fsObjects          (const void* self, void** obj1, void** obj2);
 static bool                  isDeleted          (const void* self);
+static bool                  isNonRootNamespace (const void* self);
 static void deleteLinuxFileInfo(struct tag_LinuxFileInfo* object);
 
 
@@ -82,6 +83,7 @@ static LinuxFileInfo template_LinuxFileInfo =
             fsType,
             fsObjects,
             isDeleted,
+            isNonRootNamespace,
             NULL,
             (void (*)(const void*))deleteLinuxFileInfo
         },
@@ -574,6 +576,30 @@ static bool isDeleted(const void* self)
     {
         return (!IS_ROOT(this->mDentry) && d_unhashed(this->mDentry));
     }
+    return false;
+}
+
+static bool isNonRootNamespace(const void* self)
+{
+#ifdef TALPA_MNT_NAMESPACE
+    if (! this->mDentry )
+    {
+        return false;
+    }
+    if (! this->mVFSMount )
+    {
+        return false;
+    }
+    if (NULL == getNamespaceInfo(this->mVFSMount))
+    {
+        return false;
+    }
+    if (S_ISDIR(this->mDentry->d_inode->i_mode))
+    {
+        return false;
+    }
+    return true;
+#endif
     return false;
 }
 

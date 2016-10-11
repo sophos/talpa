@@ -618,6 +618,12 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     {
         len += filename_len + 1;
     }
+    if (info->isNonRootNamespace(info))
+    {
+        /* we're in a namespace/container, append '(namespace)' to the path */
+        dbg("    Adding (namespace) to file in a non-root namespace");
+        len += 13;
+    }
     if ( likely(rootdir != NULL) )
     {
         rootdir_len = strlen(rootdir);
@@ -659,6 +665,11 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
         if ( likely(filename != NULL) )
         {
             strcpy(((char *)file) + sizeof(struct TalpaPacketFragment_FileDetails), filename);
+        }
+        if (info->isNonRootNamespace(info))
+        {
+            /* we're in a namespace/container, append '(namespace)' to the path */
+            strcpy(((char *)file) + sizeof(struct TalpaPacketFragment_FileDetails)+filename_len, " (namespace)");
         }
     }
 
