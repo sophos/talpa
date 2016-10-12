@@ -107,7 +107,6 @@ static LinuxFileInfo template_LinuxFileInfo =
     };
 #define this    ((LinuxFileInfo*)self)
 
-
 /*
 * Object creation/destruction.
 */
@@ -170,7 +169,7 @@ LinuxFileInfo* newLinuxFileInfo(EFilesystemOperation operation, const char* file
 
     root = TALPA_Portability()->systemRoot();
 
-    object->mFilename = talpa__d_path(dentry, mnt, root->directoryEntry(root->object), root->mountPoint(root->object), object->mPath, path_size);
+    object->mFilename = talpa__d_path(dentry, mnt, root->directoryEntry(root->object), root->mountPoint(root->object), object->mPath, path_size, &object->mIsNonRootNamespace);
     if (unlikely(object->mFilename == NULL))
     {
         critical("newLinuxFileInfo: talpa__d_path returned NULL");
@@ -227,7 +226,7 @@ LinuxFileInfo* newLinuxFileInfoFromFd(EFilesystemOperation operation, int fd)
         {
             ISystemRoot* root = TALPA_Portability()->systemRoot();
 
-            object->mFilename = talpa__d_path(file->f_dentry, file->f_vfsmnt, root->directoryEntry(root->object), root->mountPoint(root->object), object->mPath, path_size);
+            object->mFilename = talpa__d_path(file->f_dentry, file->f_vfsmnt, root->directoryEntry(root->object), root->mountPoint(root->object), object->mPath, path_size, &object->mIsNonRootNamespace);
             if (unlikely(object->mFilename == NULL))
             {
                 critical("newLinuxFileInfoFromFd: talpa__d_path returned NULL");
@@ -305,7 +304,7 @@ LinuxFileInfo* newLinuxFileInfoFromFile(EFilesystemOperation operation, void* fi
     inode = file->f_dentry->d_inode;
     root = TALPA_Portability()->systemRoot();
 
-    fi->mFilename = talpa__d_path(file->f_dentry, file->f_vfsmnt, root->directoryEntry(root->object), root->mountPoint(root->object), fi->mPath, path_size);
+    fi->mFilename = talpa__d_path(file->f_dentry, file->f_vfsmnt, root->directoryEntry(root->object), root->mountPoint(root->object), fi->mPath, path_size, &fi->mIsNonRootNamespace);
 
     fi->mOperation = operation;
     fi->mFlags = file->f_flags;
@@ -361,7 +360,8 @@ LinuxFileInfo* newLinuxFileInfoFromDirectoryEntry(EFilesystemOperation operation
     vfsmnt = (struct vfsmount *)mntobj;
     root = TALPA_Portability()->systemRoot();
 
-    fi->mFilename = talpa__d_path(dentry, vfsmnt, root->directoryEntry(root->object), root->mountPoint(root->object), fi->mPath, path_size);
+    fi->mFilename = talpa__d_path(dentry, vfsmnt, root->directoryEntry(root->object), root->mountPoint(root->object),
+        fi->mPath, path_size, &fi->mIsNonRootNamespace);
     if (unlikely(fi->mFilename == NULL))
     {
         critical("newLinuxFileInfoFromDirectoryEntry: talpa__d_path returned NULL");
@@ -413,6 +413,10 @@ LinuxFileInfo* newLinuxFileInfoFromInode(EFilesystemOperation operation, void* i
 
     memcpy(fi, &template_LinuxFileInfo, sizeof(template_LinuxFileInfo));
     fi->i_IFileInfo.object = fi;
+
+    fi->mDentry = NULL;
+    fi->mVFSMount = NULL;
+    fi->mIsNonRootNamespace = false;
 
     fi->mFilename = "<<unknown>>";
     fi->mOperation = operation;
@@ -581,26 +585,7 @@ static bool isDeleted(const void* self)
 
 static bool isNonRootNamespace(const void* self)
 {
-#ifdef TALPA_MNT_NAMESPACE
-    if (! this->mDentry )
-    {
-        return false;
-    }
-    if (! this->mVFSMount )
-    {
-        return false;
-    }
-    if (NULL == getNamespaceInfo(this->mVFSMount))
-    {
-        return false;
-    }
-    if (S_ISDIR(this->mDentry->d_inode->i_mode))
-    {
-        return false;
-    }
-    return true;
-#endif
-    return false;
+    return this->mIsNonRootNamespace;
 }
 
 /*

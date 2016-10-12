@@ -423,7 +423,7 @@ static char* absolutePath(struct dentry *dentry, struct vfsmount *mnt, char* pat
 
     if ( unlikely( IS_ERR(path) != 0 ) )
     {
-        critical("talpa__d_path: d_path returned an error: %ld",PTR_ERR(path));
+        critical("absolutePath: d_path returned an error: %ld",PTR_ERR(path));
         path = NULL;
     }
     return path;

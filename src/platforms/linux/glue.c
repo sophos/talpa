@@ -129,7 +129,7 @@ Elong:
 }
 #endif /* >= 2.6.0 */
 
-char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dentry *root, struct vfsmount *rootmnt, char *buffer, int buflen)
+char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dentry *root, struct vfsmount *rootmnt, char *buffer, int buflen, bool* nonRootNamespaceOut)
 {
     char* path;
 
@@ -158,6 +158,11 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dent
     struct path rootPath;
 #   endif
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0) || (defined TALPA_HAS_DPATH) */
+
+    if (nonRootNamespaceOut != NULL)
+    {
+        *nonRootNamespaceOut = false;
+    }
 
 #if defined HOLD_DCACHE_LOCK_WHILE_CALLING_D_PATH
     spin_lock(&dcache_lock);
@@ -256,18 +261,14 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dent
                  * dbg("    talpa__d_path: kernel_d_path returned NULL but d_path returned path %s for non-deleted file",path);
                  */
 #ifdef TALPA_MNT_NAMESPACE
-                //~ if (NULL != getNamespaceInfo(vfsmnt) && (!S_ISDIR(dentry->d_inode->i_mode)))
-                //~ {
-                    //~ /* we're in a namespace/container, append '(namespace)' to the path */
-                    //~ int pathlen=strlen(path);
-                    //~ if (pathlen + 13 > buflen)
-                    //~ {
-                        //~ return ERR_PTR(-ENAMETOOLONG);
-                    //~ }
-                    //~ memmove(buffer, path, pathlen);
-                    //~ path = buffer;
-                    //~ memcpy(buffer + pathlen, " (namespace)", 13);
-                //~ }
+                if (NULL != getNamespaceInfo(vfsmnt) && (!S_ISDIR(dentry->d_inode->i_mode)))
+                {
+                    /* we're in a namespace/container */
+                    if (nonRootNamespaceOut != NULL)
+                    {
+                        *nonRootNamespaceOut = true;
+                    }
+                }
 #endif
 
             }
