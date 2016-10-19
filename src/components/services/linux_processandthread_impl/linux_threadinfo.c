@@ -176,10 +176,10 @@ LinuxThreadInfo* newLinuxThreadInfo(void)
                 }
 #else
                 /* Don't have probe_kernel_read (2.6.32+) */
-                if ( likely (down_read_trylock(&mm->mmap_sem) ) )
+                if ( likely (down_write_trylock(&mm->mmap_sem) ) )
                 {
                     /* We are not within munmap which holds the write lock */
-                    up_read(&mm->mmap_sem); /* We don't actually need the lock while calling copy_from_user */
+                    up_write(&mm->mmap_sem); /* We don't actually need or want the lock while calling copy_from_user */
                     if ( copy_from_user(object->mEnv, (void *)mm->env_start, object->mEnvSize) )
                     {
                         err("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
