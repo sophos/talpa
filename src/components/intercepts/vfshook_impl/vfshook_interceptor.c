@@ -3153,6 +3153,7 @@ VFSHookInterceptor* newVFSHookInterceptor(void)
     appendObject(&GL_object, &GL_object.mGoodFilesystems, "vfat", false);
     appendObject(&GL_object, &GL_object.mGoodFilesystems, "ncpfs", false);
     appendObject(&GL_object, &GL_object.mGoodFilesystems, "ramfs", false);
+    appendObject(&GL_object, &GL_object.mGoodFilesystems, "aufs", false);
 
     /* Filesystem which should not (or must not) be patched */
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "rootfs", true);
@@ -3179,7 +3180,6 @@ VFSHookInterceptor* newVFSHookInterceptor(void)
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "inotifyfs", false);
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "romfs", false);
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "binfmt_misc", false);
-    appendObject(&GL_object, &GL_object.mSkipFilesystems, "aufs", true);
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "mqueue", true);
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "cgroup", false);
 
