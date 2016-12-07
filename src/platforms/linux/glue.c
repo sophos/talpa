@@ -34,13 +34,14 @@
 #include <linux/lglock.h>
 #endif
 
-#ifdef TALPA_MNT_NAMESPACE
-#include <linux/nsproxy.h>
-#endif
-
 #include "platforms/linux/glue.h"
 #include "platforms/linux/log.h"
 #include "platforms/linux/vfs_mount.h"
+
+/* TALPA_MNT_NAMESPACE defined in vfs_mount.h */
+#ifdef TALPA_MNT_NAMESPACE
+#include <linux/nsproxy.h>
+#endif
 
 #if defined(TALPA_DPATH_PATH) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
 #define TALPA_D_DNAME_DIRECT_DPATH
