@@ -35,6 +35,7 @@
 #include "common/talpa.h"
 #include "app_ctrl/iportability_app_ctrl.h"
 #include "platforms/linux/glue.h"
+#include "platforms/linux/locking.h"
 #include "platforms/linux/alloc.h"
 
 #include "linux_threadinfo.h"
@@ -82,13 +83,6 @@ static LinuxThreadInfo template_LinuxThreadInfo =
     };
 #define this    ((LinuxThreadInfo*)self)
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
-#define talpa_proc_fs_lock   spin_lock
-#define talpa_proc_fs_unlock spin_unlock
-#else
-#define talpa_proc_fs_lock   read_lock
-#define talpa_proc_fs_unlock read_unlock
-#endif
 
 /*
 * Object creation/destruction.

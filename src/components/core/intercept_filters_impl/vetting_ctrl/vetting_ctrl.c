@@ -753,6 +753,8 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
         {
             if ( local_filename )
             {
+                bool retryOpen = true;
+
                 /* Use just the process relative part of the filename if the process is
                     not at the system root. It used
                     to be rootdir_len > 1 but userspace wants to have a special case. */
@@ -761,11 +763,16 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
                     local_filename += rootdir_len;
                 }
 
-
 #ifdef TALPA_RESTRICT_OPEN_DURING_EXIT
-                if ((current->flags & PF_EXITING) == 0)
+                if ((current->flags & PF_EXITING) != 0)
                 {
+                    retryOpen = false;
+                    dbg("[intercepted %u-%u-%u] failed to openDentry %d - can't open %s due to process exiting",processParentPID(current), current->tgid, current->pid, ret,local_filename);
+                }
 #endif
+
+                if (retryOpen)
+                {
                     /* Open the file for the stream server. Use the appropriate method depending on operation code. */
                     if ( unlikely( operation == EFS_Exec ) )
                     {
@@ -783,13 +790,7 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
                             ret = details->file->openExec(file->object, local_filename);
                         }
                     }
-#ifdef TALPA_RESTRICT_OPEN_DURING_EXIT
                 }
-                else
-                {
-                    dbg("[intercepted %u-%u-%u] failed to openDentry %d - can't open %s due to process exiting",processParentPID(current), current->tgid, current->pid, ret,local_filename);
-                }
-#endif
             }
             else
             {
@@ -799,7 +800,14 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
 
         if ( unlikely( ret != 0 ) )
         {
-            err("[intercepted %u-%u-%u] Open failed (%d), will have no stream", processParentPID(current), current->tgid, current->pid, ret);
+                if (info->isInProcessNamespace(info))
+                {
+                    err("[intercepted %u-%u-%u] Open failed (%d), will have no stream", processParentPID(current), current->tgid, current->pid, ret);
+                }
+                else
+                {
+                    dbg("[intercepted %u-%u-%u] Open failed (%d), file is not in process's mount namespace", processParentPID(current), current->tgid, current->pid, ret);
+                }
         }
         else
         {
@@ -811,28 +819,44 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
         dbg("[intercepted %u-%u-%u] File already open", processParentPID(current), current->tgid, current->pid);
     }
 
-    /* Get the next vettingId */
-    talpa_simple_lock(&this->mVettingIDLock);
-    packet->vettingID = details->vettingID = ++this->mNextVettingID;
-    talpa_simple_unlock(&this->mVettingIDLock);
-    dbg("[intercepted %u-%u-%u] vettingID = %u", processParentPID(current), current->tgid, current->pid, details->vettingID);
+    if (ret != 0 && !info->isInProcessNamespace(info))
+    {
+        /*
+         * Files that aren't readable by the process (e.g. execute only binaries)
+         * That we can't open with openExec, because the 'path' available isn't
+         * accessible by the process itself.
+         *
+         * Should already have been scanned via in-process namespace before we get here.
+         */
+        dbg("[intercepted %u-%u-%u] Skipping %s because we can't open it",
+            processParentPID(current), current->tgid, current->pid,
+            local_filename);
+    }
+    else
+    {
+        /* Get the next vettingId */
+        talpa_simple_lock(&this->mVettingIDLock);
+        packet->vettingID = details->vettingID = ++this->mNextVettingID;
+        talpa_simple_unlock(&this->mVettingIDLock);
+        dbg("[intercepted %u-%u-%u] vettingID = %u", processParentPID(current), current->tgid, current->pid, details->vettingID);
 
-    /* Increase the reference count on objects provided by standard intercept process. */
-    /* Note, file is taken earlier above! */
-    report->get(report);
-    userInfo->get(userInfo);
-    info->get(info);
+        /* Increase the reference count on objects provided by standard intercept process. */
+        /* Note, file is taken earlier above! */
+        report->get(report);
+        userInfo->get(userInfo);
+        info->get(info);
 
-    /* Insert the details on a list */
-    talpa_group_lock(&group->lock);
-    talpa_list_add_tail(&details->head, &group->intercepted);
-    talpa_group_unlock(&group->lock);
+        /* Insert the details on a list */
+        talpa_group_lock(&group->lock);
+        talpa_list_add_tail(&details->head, &group->intercepted);
+        talpa_group_unlock(&group->lock);
 
-    /* Wake up the clients */
-    wake_up(&group->clientWaitQueue);
+        /* Wake up the clients */
+        wake_up(&group->clientWaitQueue);
 
-    /* Wait for the response from vetting client */
-    waitVettingResponse(this, group, details, local_filename, &this->mTimeout);
+        /* Wait for the response from vetting client */
+        waitVettingResponse(this, group, details, local_filename, &this->mTimeout);
+    }
 
     /* Now returning control to intercepted process,
         destroy everything we have created. Since objects are reference counted

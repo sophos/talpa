@@ -49,6 +49,7 @@ typedef struct tag_LinuxFileInfo
     char*                       mDeviceName;
     char*                       mFSType;
     bool                        mIsNonRootNamespace;
+    bool                        mIsInProcessMntNamespace;
 } LinuxFileInfo;
 
 /*

@@ -29,8 +29,8 @@
 
 #ifdef TALPA_REPLACE_MOUNT_STRUCT
 struct talpa_mnt_pcp {
-	int mnt_count;
-	int mnt_writers;
+    int mnt_count;
+    int mnt_writers;
 };
 
 
@@ -78,11 +78,11 @@ struct talpa_mnt_namespace {
  #define PROC_INUM_FROM_MNT_NAMESPACE(x) (x)->proc_inum
  #else
 struct talpa_mnt_namespace {
-	atomic_t		count;
-	struct mount *	root;
-	struct list_head	list;
-	wait_queue_head_t poll;
-	int event;
+    atomic_t        count;
+    struct mount *  root;
+    struct list_head    list;
+    wait_queue_head_t poll;
+    int event;
 };
 /**
  * Before 3.8 mnt namespaces didn't have inodes
@@ -98,61 +98,61 @@ typedef struct talpa_replacement_mount_struct talpa_mount_struct;
 
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
  struct talpa_replacement_mount_struct {
-	struct list_head mnt_hash;
-	talpa_mount_struct *mnt_parent;
-	struct dentry *mnt_mountpoint;
-	struct vfsmount mnt;
+    struct list_head mnt_hash;
+    talpa_mount_struct *mnt_parent;
+    struct dentry *mnt_mountpoint;
+    struct vfsmount mnt;
  # if LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0)
     struct rcu_head mnt_rcu;
  # endif
  #ifdef CONFIG_SMP
-	struct talpa_mnt_pcp __percpu *mnt_pcp;
+    struct talpa_mnt_pcp __percpu *mnt_pcp;
  #else /* ! CONFIG_SMP */
-	int mnt_count;
-	int mnt_writers;
+    int mnt_count;
+    int mnt_writers;
  #endif /* CONFIG_SMP */
-	struct list_head mnt_mounts;	/* list of children, anchored here */
-	struct list_head mnt_child;	/* and going through their mnt_child */
-	struct list_head mnt_instance;	/* mount instance on sb->s_mounts */
-	const char *mnt_devname;	/* Name of device e.g. /dev/dsk/hda1 */
-	struct list_head mnt_list;
-	struct list_head mnt_expire;	/* link in fs-specific expiry list */
-	struct list_head mnt_share;	/* circular list of shared mounts */
-	struct list_head mnt_slave_list;/* list of slave mounts */
-	struct list_head mnt_slave;	/* slave list entry */
-	talpa_mount_struct *mnt_master;	/* slave is on master->mnt_slave_list */
-	struct talpa_mnt_namespace *mnt_ns;	/* containing namespace */
+    struct list_head mnt_mounts;    /* list of children, anchored here */
+    struct list_head mnt_child; /* and going through their mnt_child */
+    struct list_head mnt_instance;  /* mount instance on sb->s_mounts */
+    const char *mnt_devname;    /* Name of device e.g. /dev/dsk/hda1 */
+    struct list_head mnt_list;
+    struct list_head mnt_expire;    /* link in fs-specific expiry list */
+    struct list_head mnt_share; /* circular list of shared mounts */
+    struct list_head mnt_slave_list;/* list of slave mounts */
+    struct list_head mnt_slave; /* slave list entry */
+    talpa_mount_struct *mnt_master; /* slave is on master->mnt_slave_list */
+    struct talpa_mnt_namespace *mnt_ns; /* containing namespace */
 };
  #else /* 3.3 - 3.5 */
  struct talpa_replacement_mount_struct {
-	struct list_head mnt_hash;
-	talpa_mount_struct *mnt_parent;
-	struct dentry *mnt_mountpoint;
-	struct vfsmount mnt;
+    struct list_head mnt_hash;
+    talpa_mount_struct *mnt_parent;
+    struct dentry *mnt_mountpoint;
+    struct vfsmount mnt;
  #ifdef CONFIG_SMP
-	struct talpa_mnt_pcp __percpu *mnt_pcp;
-	atomic_t mnt_longterm;		/* how many of the refs are longterm */
+    struct talpa_mnt_pcp __percpu *mnt_pcp;
+    atomic_t mnt_longterm;      /* how many of the refs are longterm */
  #else
-	int mnt_count;
-	int mnt_writers;
+    int mnt_count;
+    int mnt_writers;
  #endif
-	struct list_head mnt_mounts;	/* list of children, anchored here */
-	struct list_head mnt_child;	/* and going through their mnt_child */
-	struct list_head mnt_instance;	/* mount instance on sb->s_mounts */
-	const char *mnt_devname;	/* Name of device e.g. /dev/dsk/hda1 */
-	struct list_head mnt_list;
-	struct list_head mnt_expire;	/* link in fs-specific expiry list */
-	struct list_head mnt_share;	/* circular list of shared mounts */
-	struct list_head mnt_slave_list;/* list of slave mounts */
-	struct list_head mnt_slave;	/* slave list entry */
-	struct mount *mnt_master;	/* slave is on master->mnt_slave_list */
-	struct talpa_mnt_namespace *mnt_ns;	/* containing namespace */
+    struct list_head mnt_mounts;    /* list of children, anchored here */
+    struct list_head mnt_child; /* and going through their mnt_child */
+    struct list_head mnt_instance;  /* mount instance on sb->s_mounts */
+    const char *mnt_devname;    /* Name of device e.g. /dev/dsk/hda1 */
+    struct list_head mnt_list;
+    struct list_head mnt_expire;    /* link in fs-specific expiry list */
+    struct list_head mnt_share; /* circular list of shared mounts */
+    struct list_head mnt_slave_list;/* list of slave mounts */
+    struct list_head mnt_slave; /* slave list entry */
+    struct mount *mnt_master;   /* slave is on master->mnt_slave_list */
+    struct talpa_mnt_namespace *mnt_ns; /* containing namespace */
 };
  #endif /* 3.6 */
 
 static inline talpa_mount_struct *real_mount(struct vfsmount *mnt)
 {
-	return container_of(mnt, talpa_mount_struct, mnt);
+    return container_of(mnt, talpa_mount_struct, mnt);
 }
 
 static inline struct vfsmount* vfs_mount(talpa_mount_struct* mnt)
@@ -178,7 +178,7 @@ typedef struct mnt_namespace talpa_mnt_namespace_t;
 
 static inline talpa_mount_struct *real_mount(struct vfsmount *mnt)
 {
-	return mnt;
+    return mnt;
 }
 
 static inline struct vfsmount* vfs_mount(talpa_mount_struct* mnt)
@@ -224,6 +224,11 @@ struct mnt_namespace *getNamespaceInfo(struct vfsmount* mnt)
     return (struct mnt_namespace *)realmnt->mnt_ns;
 }
 
+struct vfsmount *getNamespaceRoot(struct vfsmount* mnt)
+{
+    talpa_mount_struct *realmnt = real_mount(mnt);
+    return vfs_mount((talpa_mount_struct *) realmnt->mnt_ns->root);
+}
 #endif
 
 /**

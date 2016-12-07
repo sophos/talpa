@@ -97,6 +97,15 @@
 
 /**
  * @param nonRootNamespaceOut Out parameter - returns whether the file is in a non-root namespace (container) (if pointer in not NULL)
+ * @param inProcessNamespaceOut Out parameter - returns whether the file is in the same namespace (container) as the calling process (if pointer in not NULL)
+ */
+char* talpa__d_namespace_path( struct dentry *dentry, struct vfsmount *vfsmnt,
+            struct dentry *root, struct vfsmount *rootmnt,
+            char *buffer, int buflen, bool* nonRootNamespaceOut, bool* inProcessNamespaceOut);
+
+
+/**
+ * @param nonRootNamespaceOut Out parameter - returns whether the file is in a non-root namespace (container) (if pointer in not NULL)
  */
 char * talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt,
             struct dentry *root, struct vfsmount *rootmnt,

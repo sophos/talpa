@@ -34,6 +34,10 @@
 #include <linux/lglock.h>
 #endif
 
+#ifdef TALPA_MNT_NAMESPACE
+#include <linux/nsproxy.h>
+#endif
+
 #include "platforms/linux/glue.h"
 #include "platforms/linux/log.h"
 #include "platforms/linux/vfs_mount.h"
@@ -129,7 +133,148 @@ Elong:
 }
 #endif /* >= 2.6.0 */
 
-char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dentry *root, struct vfsmount *rootmnt, char *buffer, int buflen, bool* nonRootNamespaceOut)
+
+char* talpa__d_namespace_path( struct dentry *dentry, struct vfsmount *vfsmnt,
+            struct dentry *root, struct vfsmount *rootmnt,
+            char *buffer, int buflen, bool* nonRootNamespaceOut, bool* inProcessNamespaceOut)
+{
+    char* path;
+
+    struct vfsmount *root_mnt;
+    struct dentry *root_dentry;
+    struct task_struct* proc;
+
+#ifdef TALPA_MNT_NAMESPACE
+    struct vfsmount *ns_root_mnt = NULL;
+    struct dentry *ns_root_dentry;
+    unsigned m_seq = 1;
+#endif
+
+    proc = current;
+    talpa_proc_fs_lock(&proc->fs->lock);
+    root_mnt = mntget(talpa_task_root_mnt(proc));
+    root_dentry = dget(talpa_task_root_dentry(proc));
+    talpa_proc_fs_unlock(&proc->fs->lock);
+
+#ifdef TALPA_MNT_NAMESPACE
+
+    if (inProcessNamespaceOut)
+    {
+        *inProcessNamespaceOut = (getNamespaceInfo(vfsmnt) == proc->nsproxy->mnt_ns);
+    }
+
+    talpa_vfsmount_lock(&m_seq);
+    if (getNamespaceInfo(root_mnt))
+    {
+        ns_root_mnt = mntget(getNamespaceRoot(root_mnt));
+    }
+    talpa_vfsmount_unlock(&m_seq);
+
+    dbg("root dentry %s dentry=%p vfsmnt=%p",root_dentry->d_name.name,root_dentry,root_mnt);
+
+    if(ns_root_mnt)
+    {
+        ns_root_dentry = dget(ns_root_mnt->mnt_root);
+        dbg("ns_root_dentry %s dentry=%p vfsmnt=%p",ns_root_dentry->d_name.name,ns_root_dentry,ns_root_mnt);
+
+        path = talpa__d_path(dentry, vfsmnt, ns_root_dentry, ns_root_mnt,
+            buffer, buflen, NULL);
+        dbg("talpa__d_namespace_path: found d_namespace_path: %s", path);
+
+        if (nonRootNamespaceOut)
+        {
+            *nonRootNamespaceOut = (ns_root_mnt != rootmnt);
+        }
+        dput(ns_root_dentry);
+
+        mntput(ns_root_mnt);
+
+    } else {
+        path = talpa__d_path(dentry, vfsmnt, root_dentry, root_mnt,
+            buffer, buflen, nonRootNamespaceOut);
+        dbg("talpa__d_namespace_path: found non namespace path: %s", path);
+
+    }
+#else /* TALPA_MNT_NAMESPACE */
+    if (inProcessNamespaceOut)
+    {
+        *inProcessNamespaceOut = true;
+    }
+
+    path = talpa__d_path(dentry, vfsmnt, root_dentry, root_mnt,
+            buffer, buflen, nonRootNamespaceOut);
+    dbg("talpa__d_namespace_path: found non namespace path: %s", path);
+#endif
+
+    dput(root_dentry);
+    mntput(root_mnt);
+
+    return path;
+}
+
+static void debugPathWalk( struct dentry *dentry, struct vfsmount *vfsmnt,
+            struct dentry *root, struct vfsmount *rootmnt)
+{
+    /* Debug - try and evaluate roots */
+    int count = 50;
+    struct dentry *td = dentry;
+    struct vfsmount *temp_vfsmnt = vfsmnt;
+
+    dbg("DEBUG: expected root node %s dentry=%p vfsmnt=%p",root->d_name.name,root,rootmnt);
+    while (td != root || temp_vfsmnt != rootmnt)
+    {
+        count--;
+        if (count == 0)
+        {
+            dbg("DEBUG: reached count limit!");
+            break;
+        }
+        dbg("DEBUG: examining %s %p",td->d_name.name,td);
+        if (td == temp_vfsmnt->mnt_root || IS_ROOT(td))
+        {
+            struct vfsmount *temp2_vfsmnt = getParent(temp_vfsmnt);
+            if (td == temp_vfsmnt->mnt_root)
+            {
+                dbg("DEBUG: found root dentry td == temp_vfsmnt->mnt_root %p",td);
+            }
+            if (IS_ROOT(td))
+            {
+                dbg("DEBUG: found root dentry IS_ROOT(td) %p",td);
+            }
+            dbg("DEBUG: going to parent: %p -> %p",temp_vfsmnt,temp2_vfsmnt);
+            if (temp_vfsmnt != temp2_vfsmnt)
+            {
+                td = getVfsMountPoint(temp_vfsmnt);
+                dbg("DEBUG: going to mountpoint %s dentry=%p", td->d_name.name, td);
+                temp_vfsmnt = temp2_vfsmnt;
+            }
+            else
+            {
+                dbg("DEBUG: Got to temp_vfsmnt = temp2_vfsmnt!");
+            }
+        }
+        if (td == td->d_parent)
+        {
+            dbg("DEBUG: td == td->d_parent");
+            break;
+        }
+        else if (td->d_parent == NULL)
+        {
+            dbg("DEBUG: td->d_parent == NULL");
+            break;
+        }
+        td = td->d_parent;
+    }
+    dbg("DEBUG: actual root node %s dentry=%p vfsmnt=%p",td->d_name.name,td,temp_vfsmnt);
+    if (td == root && temp_vfsmnt == rootmnt)
+    {
+        dbg("DEBUG: Found the correct root");
+    }
+}
+
+char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt,
+            struct dentry *root, struct vfsmount *rootmnt,
+            char *buffer, int buflen, bool* nonRootNamespaceOut)
 {
     char* path;
 
@@ -175,9 +320,9 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dent
     pathPath.mnt = vfsmnt;
     rootPath.dentry = root;
     rootPath.mnt = rootmnt;
-#endif
+#   endif
 
-#if defined TALPA_D_DNAME_DIRECT_DPATH
+#   if defined TALPA_D_DNAME_DIRECT_DPATH
     if (dentry->d_op && dentry->d_op->d_dname)
     {
         path = d_path(&pathPath, buffer, buflen);
@@ -191,7 +336,7 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dent
             return path;
         }
     }
-#endif /* TALPA_D_DNAME_DIRECT_DPATH */
+#   endif /* TALPA_D_DNAME_DIRECT_DPATH */
 
 #   if defined TALPA_DPATH_SLES11
     path = kernel_d_path(&pathPath, &rootPath, buffer, buflen, 0);
@@ -268,6 +413,11 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt, struct dent
                     {
                         *nonRootNamespaceOut = true;
                     }
+                }
+
+                if (false)
+                {
+                    debugPathWalk(dentry, vfsmnt, root, rootmnt);
                 }
 #endif
 

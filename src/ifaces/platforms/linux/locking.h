@@ -136,6 +136,17 @@ typedef rwlock_t talpa_rcu_lock_t;
 #define talpa_unlock_kernel     smp_mb
 #endif
 
+/**
+ * What sort of lock is required for proc->fs->lock ?
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+#define talpa_proc_fs_lock   spin_lock
+#define talpa_proc_fs_unlock spin_unlock
+#else
+#define talpa_proc_fs_lock   read_lock
+#define talpa_proc_fs_unlock read_unlock
+#endif
+
 #endif
 
 /*

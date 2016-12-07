@@ -27,22 +27,23 @@
 
 typedef struct
 {
-    void                  (*get)                (const void* self);
-    EFilesystemOperation  (*operation)          (const void* self);
-    const char*           (*filename)           (const void* self);
-    unsigned int          (*flags)              (const void* self);
-    unsigned int          (*mode)               (const void* self);
-    unsigned long         (*inode)              (const void* self);
-    bool                  (*isWritable)         (const void* self);
-    unsigned int          (*isWritableAnywhere) (const void* self);
-    uint64_t              (*device)             (const void* self);
-    uint32_t              (*deviceMajor)        (const void* self);
-    uint32_t              (*deviceMinor)        (const void* self);
-    const char*           (*deviceName)         (const void* self);
-    const char*           (*fsType)             (const void* self);
-    bool                  (*fsObjects)          (const void* self, void** obj1, void** obj2);
-    bool                  (*isDeleted)          (const void* self);
-    bool                  (*isNonRootNamespace) (const void* self);
+    void                  (*get)                  (const void* self);
+    EFilesystemOperation  (*operation)            (const void* self);
+    const char*           (*filename)             (const void* self);
+    unsigned int          (*flags)                (const void* self);
+    unsigned int          (*mode)                 (const void* self);
+    unsigned long         (*inode)                (const void* self);
+    bool                  (*isWritable)           (const void* self);
+    unsigned int          (*isWritableAnywhere)   (const void* self);
+    uint64_t              (*device)               (const void* self);
+    uint32_t              (*deviceMajor)          (const void* self);
+    uint32_t              (*deviceMinor)          (const void* self);
+    const char*           (*deviceName)           (const void* self);
+    const char*           (*fsType)               (const void* self);
+    bool                  (*fsObjects)            (const void* self, void** obj1, void** obj2);
+    bool                  (*isDeleted)            (const void* self);
+    bool                  (*isNonRootNamespace)   (const void* self);
+    bool                  (*isInProcessNamespace) (const void* self);
     /*
      *  Object supporting this interface instance.
      */
