@@ -176,10 +176,10 @@ LinuxThreadInfo* newLinuxThreadInfo(void)
                 }
 #else
                 /* Don't have probe_kernel_read (2.6.32+) */
-                if ( likely (down_read_trylock(&mm->mmap_sem) ) )
+                if ( likely (down_write_trylock(&mm->mmap_sem) ) )
                 {
                     /* We are not within munmap which holds the write lock */
-                    up_read(&mm->mmap_sem); /* We don't actually need the lock while calling copy_from_user */
+                    up_write(&mm->mmap_sem); /* We don't actually need or want the lock while calling copy_from_user */
                     if ( copy_from_user(object->mEnv, (void *)mm->env_start, object->mEnvSize) )
                     {
                         err("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
@@ -276,7 +276,7 @@ static const char* rootDir(const void* self)
         {
             ISystemRoot* root = TALPA_Portability()->systemRoot();
 
-            this->mRootDir = talpa__d_path(this->mRootDentry, this->mRootMount, root->directoryEntry(root->object), root->mountPoint(root->object), this->mPath, path_size);
+            this->mRootDir = talpa__d_path(this->mRootDentry, this->mRootMount, root->directoryEntry(root->object), root->mountPoint(root->object), this->mPath, path_size, NULL);
             if (unlikely(this->mRootDir == NULL))
             {
                 critical("threadInfo:rootDir: talpa__d_path returned NULL");

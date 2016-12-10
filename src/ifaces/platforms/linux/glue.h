@@ -95,9 +95,13 @@
 #define snprintf(string, len, arg...) sprintf(string, ## arg)
 #endif
 
+/**
+ * @param nonRootNamespaceOut Out parameter - returns whether the file is in a non-root namespace (container) (if pointer in not NULL)
+ */
 char * talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt,
             struct dentry *root, struct vfsmount *rootmnt,
-            char *buffer, int buflen);
+            char *buffer, int buflen,
+            bool* nonRootNamespaceOut);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
 
