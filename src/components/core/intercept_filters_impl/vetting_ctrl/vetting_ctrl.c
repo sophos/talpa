@@ -559,9 +559,10 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     int ret;
     char* local_filename;
     struct TalpaPacket_VettingDetails* packet;
+#ifdef TALPA_MNT_NAMESPACE
     char* hostname = NULL;
     bool rootUtsNamespace = true;
-
+#endif
 
     operation = info->operation(info);
     if (!(    ((operation == EFS_Open) && (this->mVettingMask&HOOK_OPEN))
@@ -621,6 +622,7 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     {
         len += filename_len + 1;
     }
+#ifdef TALPA_MNT_NAMESPACE
     if (info->isNonRootNamespace(info))
     {
         if (info->isInProcessNamespace(info))
@@ -644,6 +646,7 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
             len += 13;
         }
     }
+#endif
     if ( likely(rootdir != NULL) )
     {
         rootdir_len = strlen(rootdir);
@@ -688,6 +691,7 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
             strcpy(((char *)file) + pos, filename);
             pos += filename_len;
         }
+#ifdef TALPA_MNT_NAMESPACE
         if (info->isNonRootNamespace(info))
         {
             if (rootUtsNamespace)
@@ -713,6 +717,7 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
                 pos += 1;
             }
         }
+#endif
     }
 
     /* Fill in the rest... */
