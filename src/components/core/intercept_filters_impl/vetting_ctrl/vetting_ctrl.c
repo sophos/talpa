@@ -22,6 +22,7 @@
 #include <linux/string.h>
 #include <linux/limits.h>
 #include <linux/sched.h>
+#include <linux/utsname.h>
 #include <asm/fcntl.h>
 
 
@@ -558,6 +559,8 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     int ret;
     char* local_filename;
     struct TalpaPacket_VettingDetails* packet;
+    char* hostname = NULL;
+    bool rootUtsNamespace = true;
 
 
     operation = info->operation(info);
@@ -620,9 +623,26 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     }
     if (info->isNonRootNamespace(info))
     {
-        /* we're in a namespace/container, append '(namespace)' to the path */
-        dbg("    Adding (namespace) to file in a non-root namespace");
-        len += 13;
+        if (info->isInProcessNamespace(info))
+        {
+            ISystemRoot* root = TALPA_Portability()->systemRoot();
+            rootUtsNamespace = (root->utsNamespace(root) == threadInfo->utsNamespace(threadInfo));
+        }
+        if (rootUtsNamespace)
+        {
+            /* we're in a namespace/container, append '(namespace)' to the path */
+            len += 13;
+        }
+        else
+        {
+            hostname = utsname()->nodename;
+            if (hostname != NULL)
+            {
+                len += strlen(hostname) + 10;
+            }
+            /* we're in a container, append '(container)' to the path */
+            len += 13;
+        }
     }
     if ( likely(rootdir != NULL) )
     {
@@ -658,18 +678,40 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     packet->gid = userInfo->gid(userInfo);
     packet->egid = userInfo->egid(userInfo);
     {
+        size_t pos = sizeof(struct TalpaPacketFragment_FileDetails);
         struct TalpaPacketFragment_FileDetails* file = (struct TalpaPacketFragment_FileDetails *)(((char *)packet) + sizeof(struct TalpaPacket_VettingDetails));
         file->operation = this->mFOPLookup[operation];
         file->flags = info->flags(info);
         file->mode = info->mode(info);
         if ( likely(filename != NULL) )
         {
-            strcpy(((char *)file) + sizeof(struct TalpaPacketFragment_FileDetails), filename);
+            strcpy(((char *)file) + pos, filename);
+            pos += filename_len;
         }
         if (info->isNonRootNamespace(info))
         {
-            /* we're in a namespace/container, append '(namespace)' to the path */
-            strcpy(((char *)file) + sizeof(struct TalpaPacketFragment_FileDetails)+filename_len, " (namespace)");
+            if (rootUtsNamespace)
+            {
+                /* we're in a namespace/container, append '(namespace)' to the path */
+                strcpy(((char *)file) + pos, " (namespace)");
+                pos += 12;
+            }
+            else
+            {
+                /* we're in a namespace/container, append '(namespace)' to the path */
+                strcpy(((char *)file) + pos, " (container");
+                pos += 11;
+
+                if ( hostname != NULL)
+                {
+                    strcpy(((char *)file) + pos, " hostname=");
+                    pos += 10;
+                    strcpy(((char *)file) + pos, hostname);
+                    pos += strlen(hostname);
+                }
+                strcpy(((char *)file) + pos, ")");
+                pos += 1;
+            }
         }
     }
 

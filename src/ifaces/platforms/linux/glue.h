@@ -376,6 +376,8 @@ static inline gid_t __talpa_kgid_val(talpa_kgid_t gid)
 #define f_dentry f_path.dentry
 #endif /* TALPA_FDENTRY_DEFINED */
 
+void* getUtsNamespace(struct task_struct* process);
+
 #endif /* H_LINUXGLUE */
 /*
  * End of linux_glue.h

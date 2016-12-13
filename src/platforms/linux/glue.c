@@ -547,6 +547,16 @@ void talpa_get_fs_root_and_pwd(
 }
 #endif
 
+
+void* getUtsNamespace(struct task_struct* process)
+{
+#ifdef TALPA_MNT_NAMESPACE
+    return (void*) process->nsproxy->uts_ns;
+#else
+    return NULL;
+#endif
+}
+
 /*
 * End of linux_glue.c
 */

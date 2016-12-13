@@ -24,6 +24,7 @@ typedef struct
 {
     void*   (*directoryEntry)   (const void* self);
     void*   (*mountPoint)       (const void* self);
+    void*   (*utsNamespace)     (const void* self);
 
     /*
      *  Object supporting this interface instance.

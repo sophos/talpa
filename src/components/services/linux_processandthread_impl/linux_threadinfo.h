@@ -39,6 +39,7 @@ typedef struct tag_LinuxThreadInfo
     char*                       mRootDir;
     struct dentry*              mRootDentry;
     struct vfsmount*            mRootMount;
+    void*                       mUtsNamespace;
 } LinuxThreadInfo;
 
 /*

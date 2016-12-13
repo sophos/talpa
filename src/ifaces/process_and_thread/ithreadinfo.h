@@ -32,6 +32,7 @@ typedef struct
     const unsigned char*    (*environment)      (const void* self);
     unsigned long           (*controllingTTY)   (const void* self);
     const char*             (*rootDir)          (const void* self);
+    void*                   (*utsNamespace)     (const void* self);
     /*
      *  Object supporting this interface instance.
      */

@@ -29,6 +29,7 @@ typedef struct tag_LinuxSystemRoot
 
     struct dentry*      mDentry;
     struct vfsmount*    mMnt;
+    void*               mUtsNamespace;
 } LinuxSystemRoot;
 
 /*
