@@ -615,8 +615,6 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     dbg("[intercepted %u-%u-%u] allocated %lu bytes at 0x%p for vetting details", processParentPID(current), current->tgid, current->pid, (long unsigned int) sizeof(VettingDetails), details);
 
     /* See how much memory do we need for VettingDetails packet */
-    rootdir = threadInfo->rootDir(threadInfo);
-
     len = sizeof(struct TalpaPacket_VettingDetails);
     len += sizeof(struct TalpaPacketFragment_FileDetails);
     if ( likely(filename != NULL) )
@@ -648,15 +646,6 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
         }
     }
 #endif
-    if ( likely(rootdir != NULL) )
-    {
-        rootdir_len = strlen(rootdir);
-        /* Accomodate lazy userspace by saying that this process has no root. Poor process. ;( */
-        if ( likely(rootdir_len == 1) )
-        {
-            rootdir_len = 0;
-        }
-    }
 
     /* Allocate it */
     packet = talpa_alloc(len);
@@ -669,6 +658,18 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     }
 
     dbg("[intercepted %u-%u-%u] allocated %u bytes at 0x%p for vetting details packet", processParentPID(current), current->tgid, current->pid, len, packet);
+
+    rootdir = threadInfo->rootDir(threadInfo);
+
+    if ( likely(rootdir != NULL) )
+    {
+        rootdir_len = strlen(rootdir);
+        /* Accomodate lazy userspace by saying that this process has no root. Poor process. ;( */
+        if ( likely(rootdir_len == 1) )
+        {
+            rootdir_len = 0;
+        }
+    }
 
     /* Fill in the packet */
     packet->header.version = TALPA_PROTOCOL_VERSION;
@@ -988,7 +989,8 @@ static void examineFilesystem(const void* self, IEvaluationReport* report,
         return;
     }
 
-    dbg("[intercepted %u-%u-%u] allocated %lu bytes at 0x%p for vetting details", processParentPID(current), current->tgid, current->pid, (long unsigned int) sizeof(VettingDetails), details);
+    dbg("[intercepted %u-%u-%u] allocated %lu bytes at 0x%p for vetting details",
+        processParentPID(current), current->tgid, current->pid, (long unsigned int) sizeof(VettingDetails), details);
 
     /* See how much memory do we need for VettingDetails packet */
     rootdir = threadInfo->rootDir(threadInfo);

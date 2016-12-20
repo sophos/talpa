@@ -222,55 +222,66 @@ static void debugPathWalk( struct dentry *dentry, struct vfsmount *vfsmnt,
     struct dentry *td = dentry;
     struct vfsmount *temp_vfsmnt = vfsmnt;
 
-    dbg("DEBUG: expected root node %s dentry=%p vfsmnt=%p",root->d_name.name,root,rootmnt);
+    err("DEBUG: expected root node %s dentry=%p vfsmnt=%p",root->d_name.name,root,rootmnt);
     while (td != root || temp_vfsmnt != rootmnt)
     {
         count--;
         if (count == 0)
         {
-            dbg("DEBUG: reached count limit!");
+            err("DEBUG: reached count limit!");
             break;
         }
-        dbg("DEBUG: examining %s %p",td->d_name.name,td);
+        err("DEBUG: examining %s %p",td->d_name.name,td);
         if (td == temp_vfsmnt->mnt_root || IS_ROOT(td))
         {
             struct vfsmount *temp2_vfsmnt = getParent(temp_vfsmnt);
             if (td == temp_vfsmnt->mnt_root)
             {
-                dbg("DEBUG: found root dentry td == temp_vfsmnt->mnt_root %p",td);
+                err("DEBUG: found root dentry td == temp_vfsmnt->mnt_root %p",td);
             }
             if (IS_ROOT(td))
             {
-                dbg("DEBUG: found root dentry IS_ROOT(td) %p",td);
+                err("DEBUG: found root dentry IS_ROOT(td) %p",td);
             }
-            dbg("DEBUG: going to parent: %p -> %p",temp_vfsmnt,temp2_vfsmnt);
+            err("DEBUG: going to parent: %p -> %p",temp_vfsmnt,temp2_vfsmnt);
             if (temp_vfsmnt != temp2_vfsmnt)
             {
                 td = getVfsMountPoint(temp_vfsmnt);
-                dbg("DEBUG: going to mountpoint %s dentry=%p", td->d_name.name, td);
+                err("DEBUG: going to mountpoint %s dentry=%p", td->d_name.name, td);
                 temp_vfsmnt = temp2_vfsmnt;
             }
             else
             {
-                dbg("DEBUG: Got to temp_vfsmnt = temp2_vfsmnt!");
+                err("DEBUG: Got to temp_vfsmnt = temp2_vfsmnt!");
             }
         }
         if (td == td->d_parent)
         {
-            dbg("DEBUG: td == td->d_parent");
+            err("DEBUG: td == td->d_parent");
             break;
         }
         else if (td->d_parent == NULL)
         {
-            dbg("DEBUG: td->d_parent == NULL");
+            err("DEBUG: td->d_parent == NULL");
             break;
         }
         td = td->d_parent;
     }
-    dbg("DEBUG: actual root node %s dentry=%p vfsmnt=%p",td->d_name.name,td,temp_vfsmnt);
+    err("DEBUG: actual root node %s dentry=%p vfsmnt=%p",td->d_name.name,td,temp_vfsmnt);
     if (td == root && temp_vfsmnt == rootmnt)
     {
-        dbg("DEBUG: Found the correct root");
+        err("DEBUG: Found the correct root");
+    }
+    else
+    {
+        err("DEBUG: Found wrong root td=%p (name=%s) vfsmnt=%p",
+            td,
+            td->d_name.name,
+            temp_vfsmnt);
+        err("DEBUG: Expected       root=%p (name=%s) vfsmnt=%p",
+            root,
+            root->d_name.name,
+            rootmnt);
     }
 }
 
