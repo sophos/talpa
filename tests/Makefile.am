@@ -124,7 +124,8 @@ check_PROGRAMS +=   chkstdinterceptor \
                     tlp-8-001 \
                     tlp-8-002 \
                     tlp-8-003 \
-                    tlp-8-004
+                    tlp-8-004 \
+                    chk_chroot
 
 PTHREAD_FLAG = -pthread
 
@@ -293,6 +294,9 @@ tlp_8_003_CFLAGS = $(USERSPACE_C_FLAGS)
 tlp_8_004_SOURCES = tlp-8-004.c ../clients/vc-lib.c ../clients/pe-lib.c ../clients/talpa.c
 tlp_8_004_CFLAGS = $(USERSPACE_C_FLAGS)
 
+chk_chroot_SOURCES = chk_chroot.c ../clients/vc-lib.c ../clients/talpa.c
+chk_chroot_CFLAGS = $(USERSPACE_C_FLAGS)
+
 if LOADTEST
 
 check_PROGRAMS +=  reiserfsmnt
@@ -452,6 +456,7 @@ TESTS +=                  chkext2fops.sh \
                           chkminix1.sh \
                           chkminix2.sh \
                           chk_lsattr.sh \
+                          chk_chroot.sh \
                           tlp-cleanup.sh
 
 check_SCRIPTS =           $(TESTS) \
