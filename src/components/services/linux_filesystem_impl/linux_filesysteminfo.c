@@ -98,7 +98,7 @@ static char* absolutePath(struct dentry *dentry, struct vfsmount *mnt)
     }
 
     root = TALPA_Portability()->systemRoot();
-    apath = talpa__d_path(dentry, mnt, root->directoryEntry(root->object), root->mountPoint(root->object), path, path_size);
+    apath = talpa__d_path(dentry, mnt, root->directoryEntry(root->object), root->mountPoint(root->object), path, path_size, NULL);
 
     if (unlikely( apath == NULL ))
     {

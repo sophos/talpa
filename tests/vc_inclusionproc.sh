@@ -2,7 +2,7 @@
 #
 # TALPA test script
 #
-# Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+# Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
 #
 # This program is free software; you can redistribute it and/or modify it under the terms of the
 # GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -16,6 +16,14 @@
 #
 
 . ${srcdir}/talpa-init.sh
+
+if test -f /etc/SuSE-release; then
+    kernel_ver="`uname -r`"
+    if test "${kernel_ver%%-*}" = "3.0.101"; then
+        # LINUXEP-3019 - kernel lockup on loopback sync/umount on SLES11 SP4
+        exit 77
+    fi
+fi
 
 tmpdir=/tmp/tlp-test
 
