@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
 
     if (action == EIA_Timeout)
     {
-        ret = ioctl(fd,TALPA_TEST_SET_ERROR_CODE, ETIME);
+        ret = ioctl(fd,TALPA_TEST_SET_ERROR_CODE, 0);
 
         if ( ret < 0 )
         {

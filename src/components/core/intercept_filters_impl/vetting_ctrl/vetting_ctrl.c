@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -94,6 +94,7 @@ static void deleteObject(const void *self, VetCtrlConfigObject* obj);
 #define CFG_STATUS          "status"
 #define CFG_TIMEOUT         "timeout-ms"
 #define CFG_FSTIMEOUT       "fs-timeout-ms"
+#define CFG_TIMEOUTDENY     "timeout-deny"
 #define CFG_ROUTING         "routing"
 #define CFG_XHACK           "xsmartsched-fix"
 #define CFG_GROUPS          "groups"
@@ -185,9 +186,11 @@ static VettingController template_VettingController =
         { },
         ATOMIC_INIT(0),
         ATOMIC_INIT(0),
+        true,
         NULL,
 
         {
+            { NULL, NULL, VETCTRL_CFGDATASIZE, true, true },
             { NULL, NULL, VETCTRL_CFGDATASIZE, true, true },
             { NULL, NULL, VETCTRL_CFGDATASIZE, true, true },
             { NULL, NULL, VETCTRL_CFGDATASIZE, true, true },
@@ -205,6 +208,7 @@ static VettingController template_VettingController =
         { CFG_STATUS, CFG_VALUE_ENABLED },
         { CFG_TIMEOUT, CFG_VALUE_TIMEOUT },
         { CFG_FSTIMEOUT, CFG_VALUE_FSTIMEOUT },
+        { CFG_TIMEOUTDENY, CFG_VALUE_ENABLED },
         { CFG_ROUTING, CFG_VALUE_DUMMY },
         { CFG_XHACK, CFG_VALUE_ENABLED },
         { CFG_GROUPS, CFG_VALUE_DUMMY },
@@ -266,16 +270,18 @@ VettingController* newVettingController(void)
         object->mConfig[1].value = object->mTimeoutConfigData.value;
         object->mConfig[2].name  = object->mFSTimeoutConfigData.name;
         object->mConfig[2].value = object->mFSTimeoutConfigData.value;
-        object->mConfig[3].name  = object->mRoutingConfigData.name;
-        object->mConfig[3].value = object->mRoutingConfigData.value;
-        object->mConfig[4].name  = object->mXHackConfigData.name;
-        object->mConfig[4].value = object->mXHackConfigData.value;
-        object->mConfig[5].name  = object->mGroupsConfigData.name;
-        object->mConfig[5].value = object->mGroupsConfigData.value;
-        object->mConfig[6].name  = object->mOpsConfigData.name;
-        object->mConfig[6].value = object->mOpsConfigData.value;
-        object->mConfig[7].name  = object->mInterruptibleConfigData.name;
-        object->mConfig[7].value = object->mInterruptibleConfigData.value;
+        object->mConfig[3].name  = object->mTimeoutDenyConfigData.name;
+        object->mConfig[3].value = object->mTimeoutDenyConfigData.value;
+        object->mConfig[4].name  = object->mRoutingConfigData.name;
+        object->mConfig[4].value = object->mRoutingConfigData.value;
+        object->mConfig[5].name  = object->mXHackConfigData.name;
+        object->mConfig[5].value = object->mXHackConfigData.value;
+        object->mConfig[6].name  = object->mGroupsConfigData.name;
+        object->mConfig[6].value = object->mGroupsConfigData.value;
+        object->mConfig[7].name  = object->mOpsConfigData.name;
+        object->mConfig[7].value = object->mOpsConfigData.value;
+        object->mConfig[8].name  = object->mInterruptibleConfigData.name;
+        object->mConfig[8].value = object->mInterruptibleConfigData.value;
     }
     return object;
 }
@@ -507,6 +513,10 @@ static inline void waitVettingResponse(const void* self, VettingGroup* group, Ve
             {
                 dbg("[intercepted %u-%u-%u] timeout", processParentPID(current), current->tgid, current->pid);
                 details->report->setRecommendedAction(details->report->object, EIA_Timeout);
+                if ( this->mTimeoutDeny )
+                {
+                    details->report->setErrorCode(details->report->object, ETIME);
+                }
             }
             else
             {
@@ -2047,6 +2057,10 @@ static struct TalpaProtocolHeader* vettingResponse(void* self, VettingClient* cl
             break;
         case TALPA_TIMEOUT:
             job->report->setRecommendedAction(job->report, EIA_Timeout);
+            if ( this->mTimeoutDeny )
+            {
+                job->report->setErrorCode(job->report->object, ETIME);
+            }
             break;
         default:
             dbg("[%u] Client responded with a unknown response %u!", (unsigned int)client->id, packet->response);
@@ -2599,6 +2613,19 @@ static void  setConfig(void* self, const char* name, const char* value)
     else if ( !strcmp(name, CFG_FSTIMEOUT) )
     {
         setFSTimeout(this, value);
+    }
+    else if ( !strcmp(name, CFG_TIMEOUTDENY) )
+    {
+        if (strcmp(value, CFG_ACTION_ENABLE) == 0)
+        {
+            this->mTimeoutDeny = true;
+            strcpy(this->mTimeoutDenyConfigData.value, CFG_VALUE_ENABLED);
+        }
+        else if (strcmp(value, CFG_ACTION_DISABLE) == 0)
+        {
+            this->mTimeoutDeny = false;
+            strcpy(this->mTimeoutDenyConfigData.value, CFG_VALUE_DISABLED);
+        }
     }
     else if ( !strcmp(name, CFG_ROUTING) )
     {

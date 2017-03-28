@@ -3,7 +3,7 @@
 ##
 ## TALPA Filesystem Interceptor
 ##
-## Copyright (C) 2004-2014 Sophos Limited, Oxford, England.
+## Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
 ##
 ## This program is free software; you can redistribute it and/or modify it under the terms of the
 ## GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -61,6 +61,7 @@ check_PROGRAMS +=   chkstdinterceptor \
                     chkexclusionioctl1 \
                     chkexclusionioctl2 \
                     chkexclusionioctl3 \
+                    chk_allowsyslog3 \
                     chk_denysyslog3 \
                     chk_denysyslog4 \
                     chk_thrdinfo \
@@ -176,6 +177,7 @@ chkexclusionioctl_SOURCES = chkexclusionioctl.c
 chkexclusionioctl1_SOURCES = chkexclusionioctl1.c
 chkexclusionioctl2_SOURCES = chkexclusionioctl2.c
 chkexclusionioctl3_SOURCES = chkexclusionioctl3.c
+chk_allowsyslog3_SOURCES = chk_allowsyslog3.c tlp-log-search.c
 chk_denysyslog3_SOURCES = chk_denysyslog3.c tlp-log-search.c
 chk_denysyslog4_SOURCES = chk_denysyslog4.c tlp-log-search.c
 chk_thrdinfo_SOURCES = chk_thrdinfo.c
@@ -345,6 +347,7 @@ TESTS +=                  chkstdinterceptor.sh \
                           chkexclusionioctl1.sh \
                           chkexclusionioctl2.sh \
                           chkexclusionioctl3.sh \
+                          chk_allowsyslog3.sh \
                           chk_denysyslog.sh \
                           chk_denysyslog1.sh \
                           chk_denysyslog2.sh \
@@ -373,7 +376,7 @@ TESTS +=                  chkstdinterceptor.sh \
 
 if TESTXWORKAROUND
 TESTS +=                  chk_vettingctrl10.sh \
-						  chk_vettingctrl11.sh
+                          chk_vettingctrl11.sh
 endif
 
 TESTS +=                  chk_vettingctrl12.sh \
@@ -460,13 +463,13 @@ TESTS +=                  chkext2fops.sh \
                           tlp-cleanup.sh
 
 check_SCRIPTS =           $(TESTS) \
-			  sysctldisable.sh \
-			  sysctlenable.sh \
-			  sysctlchk.sh \
-			  tlp-4-003a.sh \
-			  tlp-4-003b.sh \
-			  tlp-4-004a.sh \
-			  tlp-4-004b.sh \
+                          sysctldisable.sh \
+                          sysctlenable.sh \
+                          sysctlchk.sh \
+                          tlp-4-003a.sh \
+                          tlp-4-003b.sh \
+                          tlp-4-004a.sh \
+                          tlp-4-004b.sh \
                           getsysstats.pl \
                           talpa-init.sh \
                           tlp-init.sh \

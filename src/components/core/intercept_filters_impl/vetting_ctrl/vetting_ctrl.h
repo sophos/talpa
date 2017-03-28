@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -110,12 +110,14 @@ typedef struct tag_VettingController
     talpa_list_head           mRoutings;
     atomic_t                  mTimeout;
     atomic_t                  mFSTimeout;
+    bool                      mTimeoutDeny;
     char*                     mRoutingsSet;
 
-    PODConfigurationElement   mConfig[9];
+    PODConfigurationElement   mConfig[10];
     VetCtrlConfigData         mStateConfigData;
     VetCtrlConfigData         mTimeoutConfigData;
     VetCtrlConfigData         mFSTimeoutConfigData;
+    VetCtrlConfigData         mTimeoutDenyConfigData;
     VetCtrlRoutingConfigData  mRoutingConfigData;
     VetCtrlConfigData         mXHackConfigData;
     VetCtrlGroupsConfigData   mGroupsConfigData;

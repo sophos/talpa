@@ -39,7 +39,7 @@
 #include "components/services/linux_personality_impl/linux_personality.h"
 #include "components/services/linux_filesystem_impl/linux_fileinfo.h"
 #include "components/services/linux_filesystem_impl/linux_filesysteminfo.h"
-#include "components/core/intercept_filters_impl/deny_syslog/deny_syslog.h"
+#include "components/core/intercept_filters_impl/allow_syslog/allow_syslog.h"
 #include "components/core/intercept_processing_impl/evaluation_report_impl.h"
 #include "components/services/configurator_impl/procfs_configurator.h"
 #include "components/services/linux_filesystem_impl/linux_systemroot.h"
@@ -70,7 +70,7 @@ static ISystemRoot* systemRoot(void)
     return &mSystemRoot->i_ISystemRoot;
 }
 
-DenySyslogFilter *syslog;
+AllowSyslogFilter *syslog;
 EvaluationReportImpl *erep;
 static ProcfsConfigurator*  mConfig;
 static struct talpa_file tf;
@@ -179,13 +179,13 @@ static int __init talpa_test_init(void)
         return -ENOMEM;
     }
 
-    syslog = newDenySyslogFilter("DenySyslog");
+    syslog = newAllowSyslogFilter("AllowSyslog");
 
     if ( !syslog )
     {
         mConfig->delete(mConfig);
         mSystemRoot->delete(mSystemRoot);
-        err("Failed to create deny syslog filter!");
+        err("Failed to create allow syslog filter!");
         return 1;
     }
 
