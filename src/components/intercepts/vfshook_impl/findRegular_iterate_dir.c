@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -202,7 +202,7 @@ static struct TalpaFindRegularContext* initialOpenDirectory(const char* dirname,
 
 
     dirFilp = filp_open(dirname, O_RDONLY | O_DIRECTORY, 0);
-    if (dirFilp == -ENOTDIR)
+    if (PTR_ERR(dirFilp) == -ENOTDIR)
     {
         /* Mount point isn't a directory */
         return (struct TalpaFindRegularContext*)dirFilp; /* Error */
@@ -272,7 +272,7 @@ static struct dentry *scanDirectory(const char* dirname, char* buf, size_t bufsi
     };
 
     context = initialOpenDirectory(dirname, overflow, buf, bufsize);
-    if (context == -ENOTDIR)
+    if (PTR_ERR(context) == -ENOTDIR)
     {
         /* mount point isn't a directory, try it as a file */
         struct path p;
@@ -285,7 +285,7 @@ static struct dentry *scanDirectory(const char* dirname, char* buf, size_t bufsi
             path_put(&p);
             return reg;
         }
-        err("mountpoint %s isn't a directory and can't be opened as a file: %ld",dirname,error);
+        err("mountpoint %s isn't a directory and can't be opened as a file: %d",dirname,error);
         return NULL;
     }
     else if (IS_ERR(context))
