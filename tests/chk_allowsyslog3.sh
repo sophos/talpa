@@ -24,8 +24,9 @@ function check()
     ./chk_allowsyslog3 "$@" || exit 1
 }
 
-check "Timeout occurred while opening /bin/bash on behalf of process chk_allowsyslog3[" 1 5
-check "Timeout occurred while closing /bin/bash on behalf of process chk_allowsyslog3[" 2 5
-check "Timeout occurred while executing /bin/bash on behalf of process chk_allowsyslog3[" 3 5
+## check for truncated process name as proc->comm is truncated to 15 chars
+check "Timeout occurred while opening /bin/bash on behalf of process chk_allowsyslog[" 1 5
+check "Timeout occurred while closing /bin/bash on behalf of process chk_allowsyslog[" 2 5
+check "Timeout occurred while executing /bin/bash on behalf of process chk_allowsyslog[" 3 5
 
 exit 0
