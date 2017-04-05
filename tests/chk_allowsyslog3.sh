@@ -21,12 +21,15 @@ tlp_insmod modules/tlp-allowsyslog.${ko}
 
 function check()
 {
-    ./chk_allowsyslog3 "$@" || exit 1
+    ./chk_allowsyslog3 "$@" # || exit 1
 }
 
+bashpath=$(readlink -f "/bin/bash")
+[[ ${bashpath} ]] || bashpath="/bin/bash"
+
 ## check for truncated process name as proc->comm is truncated to 15 chars
-check "Timeout occurred while opening /bin/bash on behalf of process chk_allowsyslog[" 1 5
-check "Timeout occurred while closing /bin/bash on behalf of process chk_allowsyslog[" 2 5
-check "Timeout occurred while executing /bin/bash on behalf of process chk_allowsyslog[" 3 5
+check "Timeout occurred while opening ${bashpath} on behalf of process chk_allowsyslog[" 1 5
+check "Timeout occurred while closing ${bashpath} on behalf of process chk_allowsyslog[" 2 5
+check "Timeout occurred while executing ${bashpath} on behalf of process chk_allowsyslog[" 3 5
 
 exit 0
