@@ -373,6 +373,9 @@ typedef talpa_mount_struct *(*lookup_mnt_last_func)(struct vfsmount *mnt, struct
 #ifdef TALPA_HAVE_LOOKUP_MNT
 typedef talpa_mount_struct *(*lookup_mnt_func)(struct vfsmount *mnt, struct dentry *dentry, int dir);
 #endif
+#ifdef TALPA_HAVE_LOOKUP_MNT2
+typedef talpa_mount_struct *(*lookup_mnt_func)(struct vfsmount *mnt, struct dentry *dentry);
+#endif
 
 /*
  * Mark the function pointer as 'volatile' to avoid gcc bug/error:
@@ -398,6 +401,12 @@ static talpa_mount_struct* talpa_lookup_mnt_last(struct vfsmount *mnt, struct de
 #ifdef TALPA_HAVE_LOOKUP_MNT
     TALPA_PTR_FIX lookup_mnt_func lookup_mnt = (lookup_mnt_func)talpa_get_symbol("__lookup_mnt", (void *)TALPA__LOOKUP_MNT);
     return lookup_mnt(mnt, dentry, 0);
+#endif
+#ifdef TALPA_HAVE_LOOKUP_MNT2
+    /* Change in 4.9 and backported by Ubuntu to 4.4 removes __lookup_mnt_last,
+     * but also reverses the list so that __lookup_mnt is actually what we want */
+    TALPA_PTR_FIX lookup_mnt_func lookup_mnt = (lookup_mnt_func)talpa_get_symbol("__lookup_mnt", (void *)TALPA__LOOKUP_MNT);
+    return lookup_mnt(mnt, dentry);
 #endif
     return NULL;
 }
