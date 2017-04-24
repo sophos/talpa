@@ -3,7 +3,7 @@
 #
 # TALPA Filesystem Interceptor
 #
-# Copyright (C) 2004-2016 Sophos Plc
+# Copyright (C) 2004-2017 Sophos Plc
 #
 # This program is free software; you can redistribute it and/or modify it under the terms of the
 # GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -1224,7 +1224,16 @@ if test $((kern_version_code)) -ge 132608; then
             AC_MSG_RESULT([0x$lookup_mnt_last_val])
             AC_SUBST(lookup_mnt_last, "-DTALPA_SHARED_MOUNTS -DTALPA_HAVE_LOOKUP_MNT_LAST -DTALPA__LOOKUP_MNT_LAST=0x$lookup_mnt_last_val")
         else
-            AC_MSG_ERROR([not found])
+            AC_MSG_RESULT([not found])
+            AC_MSG_CHECKING([for __lookup_mnt address])
+            lookup_mnt_val=`${EGREP} " __lookup_mnt\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
+            if test x"$lookup_mnt_val" != x""
+            then
+                AC_MSG_RESULT([0x$lookup_mnt_val])
+                AC_SUBST(lookup_mnt_last, "-DTALPA_SHARED_MOUNTS -DTALPA_HAVE_LOOKUP_MNT2 -DTALPA__LOOKUP_MNT=0x$lookup_mnt_val")
+            else
+                AC_MSG_ERROR([not found])
+            fi
         fi
     elif test $((kern_version_code)) -ge 132623; then
         ## 2.6.15 - 3.12

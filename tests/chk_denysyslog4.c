@@ -1,7 +1,7 @@
 /*
  * TALPA test program
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -65,9 +65,21 @@ int main(int argc, char *argv[])
 
     if ( ret < 0 )
     {
-        fprintf(stderr,"SetPath IOCTL error!\n");
+        fprintf(stderr,"SetAction IOCTL error!\n");
         close(fd);
         return 1;
+    }
+
+    if (action == EIA_Timeout)
+    {
+        ret = ioctl(fd,TALPA_TEST_SET_ERROR_CODE, ETIME);
+
+        if ( ret < 0 )
+        {
+            fprintf(stderr,"SetErrorCode IOCTL error!\n");
+            close(fd);
+            return 1;
+        }
     }
 
     tfs.operation = operation;

@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -94,6 +94,15 @@
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,10) && !defined TALPA_HAS_SNPRINTF
 #define snprintf(string, len, arg...) sprintf(string, ## arg)
 #endif
+
+/**
+ * @param nonRootNamespaceOut Out parameter - returns whether the file is in a non-root namespace (container) (if pointer in not NULL)
+ * @param inProcessNamespaceOut Out parameter - returns whether the file is in the same namespace (container) as the calling process (if pointer in not NULL)
+ */
+char* talpa__d_namespace_path( struct dentry *dentry, struct vfsmount *vfsmnt,
+            struct dentry *root, struct vfsmount *rootmnt,
+            char *buffer, int buflen, bool* nonRootNamespaceOut, bool* inProcessNamespaceOut);
+
 
 /**
  * @param nonRootNamespaceOut Out parameter - returns whether the file is in a non-root namespace (container) (if pointer in not NULL)
@@ -366,6 +375,8 @@ static inline gid_t __talpa_kgid_val(talpa_kgid_t gid)
 #ifndef TALPA_FDENTRY_DEFINED
 #define f_dentry f_path.dentry
 #endif /* TALPA_FDENTRY_DEFINED */
+
+void* getUtsNamespace(struct task_struct* process);
 
 #endif /* H_LINUXGLUE */
 /*

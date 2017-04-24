@@ -88,6 +88,19 @@ tlpOpExclSOURCES    =  tlp_opexcl.c \
 
 tlpOpExclOBJS       =  $(tlpOpExclSOURCES:.c=.o)
 
+tlpAllowSyslogSOURCES   =  tlp_allowsyslog.c \
+                         src/platforms/linux/glue.c \
+                         src/platforms/linux/vfs_mount.c \
+                         src/components/services/linux_filesystem_impl/linux_fileinfo.c \
+                         src/components/services/linux_filesystem_impl/linux_filesysteminfo.c \
+                         src/components/services/linux_filesystem_impl/linux_systemroot.c \
+                         src/components/services/linux_personality_impl/linux_personality.c \
+                         src/components/core/intercept_processing_impl/evaluation_report_impl.c \
+                         src/components/core/intercept_filters_impl/allow_syslog/allow_syslog.c \
+                         src/components/services/configurator_impl/procfs_configurator.c
+
+tlpAllowSyslogOBJS      =  $(tlpAllowSyslogSOURCES:.c=.o)
+
 tlpDenySyslogSOURCES    =  tlp_denysyslog.c \
                          src/platforms/linux/glue.c \
                          src/platforms/linux/vfs_mount.c \

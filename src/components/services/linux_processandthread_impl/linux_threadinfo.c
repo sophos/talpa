@@ -35,6 +35,7 @@
 #include "common/talpa.h"
 #include "app_ctrl/iportability_app_ctrl.h"
 #include "platforms/linux/glue.h"
+#include "platforms/linux/locking.h"
 #include "platforms/linux/alloc.h"
 
 #include "linux_threadinfo.h"
@@ -49,6 +50,7 @@ static unsigned long environmentSize(const void* self);
 static const unsigned char* environment(const void* self);
 static unsigned long controllingTTY(const void* self);
 static const char* rootDir(const void* self);
+static void* utsNamespace(const void* self);
 static void deleteLinuxThreadInfo(struct tag_LinuxThreadInfo* object);
 
 
@@ -65,6 +67,7 @@ static LinuxThreadInfo template_LinuxThreadInfo =
             environment,
             controllingTTY,
             rootDir,
+            utsNamespace,
             NULL,
             (void (*)(const void*))deleteLinuxThreadInfo
         },
@@ -78,17 +81,11 @@ static LinuxThreadInfo template_LinuxThreadInfo =
         NULL,
         NULL,
         NULL,
-        NULL
+        NULL,
+        NULL  /* mUtsNamespace */
     };
 #define this    ((LinuxThreadInfo*)self)
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
-#define talpa_proc_fs_lock   spin_lock
-#define talpa_proc_fs_unlock spin_unlock
-#else
-#define talpa_proc_fs_lock   read_lock
-#define talpa_proc_fs_unlock read_unlock
-#endif
 
 /*
 * Object creation/destruction.
@@ -138,6 +135,9 @@ LinuxThreadInfo* newLinuxThreadInfo(void)
             }
         }
 #endif
+
+        object->mUtsNamespace = getUtsNamespace(proc);
+
         mm = proc->mm;
 
         if ( likely(mm != NULL) )
@@ -276,10 +276,13 @@ static const char* rootDir(const void* self)
         {
             ISystemRoot* root = TALPA_Portability()->systemRoot();
 
-            this->mRootDir = talpa__d_path(this->mRootDentry, this->mRootMount, root->directoryEntry(root->object), root->mountPoint(root->object), this->mPath, path_size, NULL);
+            this->mRootDir =
+                talpa__d_namespace_path(this->mRootDentry, this->mRootMount,
+                    root->directoryEntry(root->object), root->mountPoint(root->object),
+                    this->mPath, path_size, NULL, NULL);
             if (unlikely(this->mRootDir == NULL))
             {
-                critical("threadInfo:rootDir: talpa__d_path returned NULL");
+                critical("threadInfo:rootDir: talpa__d_namespace_path returned NULL");
             }
         }
 
@@ -301,6 +304,11 @@ static const char* rootDir(const void* self)
     }
 
     return this->mRootDir;
+}
+
+static void* utsNamespace(const void* self)
+{
+    return this->mUtsNamespace;
 }
 
 /*

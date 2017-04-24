@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -22,6 +22,7 @@
 #include <linux/string.h>
 #include <linux/limits.h>
 #include <linux/sched.h>
+#include <linux/utsname.h>
 #include <asm/fcntl.h>
 
 
@@ -34,6 +35,7 @@
 #include "platform/glue.h"
 #include "platform/quirks.h"
 #include "platform/alloc.h"
+#include "platform/vfs_mount.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
 # define TALPA_RESTRICT_OPEN_DURING_EXIT
@@ -92,6 +94,7 @@ static void deleteObject(const void *self, VetCtrlConfigObject* obj);
 #define CFG_STATUS          "status"
 #define CFG_TIMEOUT         "timeout-ms"
 #define CFG_FSTIMEOUT       "fs-timeout-ms"
+#define CFG_TIMEOUTDENY     "timeout-deny"
 #define CFG_ROUTING         "routing"
 #define CFG_XHACK           "xsmartsched-fix"
 #define CFG_GROUPS          "groups"
@@ -183,9 +186,11 @@ static VettingController template_VettingController =
         { },
         ATOMIC_INIT(0),
         ATOMIC_INIT(0),
+        true,
         NULL,
 
         {
+            { NULL, NULL, VETCTRL_CFGDATASIZE, true, true },
             { NULL, NULL, VETCTRL_CFGDATASIZE, true, true },
             { NULL, NULL, VETCTRL_CFGDATASIZE, true, true },
             { NULL, NULL, VETCTRL_CFGDATASIZE, true, true },
@@ -203,6 +208,7 @@ static VettingController template_VettingController =
         { CFG_STATUS, CFG_VALUE_ENABLED },
         { CFG_TIMEOUT, CFG_VALUE_TIMEOUT },
         { CFG_FSTIMEOUT, CFG_VALUE_FSTIMEOUT },
+        { CFG_TIMEOUTDENY, CFG_VALUE_ENABLED },
         { CFG_ROUTING, CFG_VALUE_DUMMY },
         { CFG_XHACK, CFG_VALUE_ENABLED },
         { CFG_GROUPS, CFG_VALUE_DUMMY },
@@ -264,16 +270,18 @@ VettingController* newVettingController(void)
         object->mConfig[1].value = object->mTimeoutConfigData.value;
         object->mConfig[2].name  = object->mFSTimeoutConfigData.name;
         object->mConfig[2].value = object->mFSTimeoutConfigData.value;
-        object->mConfig[3].name  = object->mRoutingConfigData.name;
-        object->mConfig[3].value = object->mRoutingConfigData.value;
-        object->mConfig[4].name  = object->mXHackConfigData.name;
-        object->mConfig[4].value = object->mXHackConfigData.value;
-        object->mConfig[5].name  = object->mGroupsConfigData.name;
-        object->mConfig[5].value = object->mGroupsConfigData.value;
-        object->mConfig[6].name  = object->mOpsConfigData.name;
-        object->mConfig[6].value = object->mOpsConfigData.value;
-        object->mConfig[7].name  = object->mInterruptibleConfigData.name;
-        object->mConfig[7].value = object->mInterruptibleConfigData.value;
+        object->mConfig[3].name  = object->mTimeoutDenyConfigData.name;
+        object->mConfig[3].value = object->mTimeoutDenyConfigData.value;
+        object->mConfig[4].name  = object->mRoutingConfigData.name;
+        object->mConfig[4].value = object->mRoutingConfigData.value;
+        object->mConfig[5].name  = object->mXHackConfigData.name;
+        object->mConfig[5].value = object->mXHackConfigData.value;
+        object->mConfig[6].name  = object->mGroupsConfigData.name;
+        object->mConfig[6].value = object->mGroupsConfigData.value;
+        object->mConfig[7].name  = object->mOpsConfigData.name;
+        object->mConfig[7].value = object->mOpsConfigData.value;
+        object->mConfig[8].name  = object->mInterruptibleConfigData.name;
+        object->mConfig[8].value = object->mInterruptibleConfigData.value;
     }
     return object;
 }
@@ -505,6 +513,10 @@ static inline void waitVettingResponse(const void* self, VettingGroup* group, Ve
             {
                 dbg("[intercepted %u-%u-%u] timeout", processParentPID(current), current->tgid, current->pid);
                 details->report->setRecommendedAction(details->report->object, EIA_Timeout);
+                if ( this->mTimeoutDeny )
+                {
+                    details->report->setErrorCode(details->report->object, ETIME);
+                }
             }
             else
             {
@@ -558,7 +570,10 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     int ret;
     char* local_filename;
     struct TalpaPacket_VettingDetails* packet;
-
+#ifdef TALPA_MNT_NAMESPACE
+    char* hostname = NULL;
+    bool rootUtsNamespace = true;
+#endif
 
     operation = info->operation(info);
     if (!(    ((operation == EFS_Open) && (this->mVettingMask&HOOK_OPEN))
@@ -610,29 +625,37 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     dbg("[intercepted %u-%u-%u] allocated %lu bytes at 0x%p for vetting details", processParentPID(current), current->tgid, current->pid, (long unsigned int) sizeof(VettingDetails), details);
 
     /* See how much memory do we need for VettingDetails packet */
-    rootdir = threadInfo->rootDir(threadInfo);
-
     len = sizeof(struct TalpaPacket_VettingDetails);
     len += sizeof(struct TalpaPacketFragment_FileDetails);
     if ( likely(filename != NULL) )
     {
         len += filename_len + 1;
     }
+#ifdef TALPA_MNT_NAMESPACE
     if (info->isNonRootNamespace(info))
     {
-        /* we're in a namespace/container, append '(namespace)' to the path */
-        dbg("    Adding (namespace) to file in a non-root namespace");
-        len += 13;
-    }
-    if ( likely(rootdir != NULL) )
-    {
-        rootdir_len = strlen(rootdir);
-        /* Accomodate lazy userspace by saying that this process has no root. Poor process. ;( */
-        if ( likely(rootdir_len == 1) )
+        if (info->isInProcessNamespace(info))
         {
-            rootdir_len = 0;
+            ISystemRoot* root = TALPA_Portability()->systemRoot();
+            rootUtsNamespace = (root->utsNamespace(root) == threadInfo->utsNamespace(threadInfo));
+        }
+        if (rootUtsNamespace)
+        {
+            /* we're in a namespace/container, append '(namespace)' to the path */
+            len += 13;
+        }
+        else
+        {
+            hostname = utsname()->nodename;
+            if (hostname != NULL)
+            {
+                len += strlen(hostname) + 10;
+            }
+            /* we're in a container, append '(container)' to the path */
+            len += 13;
         }
     }
+#endif
 
     /* Allocate it */
     packet = talpa_alloc(len);
@@ -646,6 +669,18 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
 
     dbg("[intercepted %u-%u-%u] allocated %u bytes at 0x%p for vetting details packet", processParentPID(current), current->tgid, current->pid, len, packet);
 
+    rootdir = threadInfo->rootDir(threadInfo);
+
+    if ( likely(rootdir != NULL) )
+    {
+        rootdir_len = strlen(rootdir);
+        /* Accomodate lazy userspace by saying that this process has no root. Poor process. ;( */
+        if ( likely(rootdir_len == 1) )
+        {
+            rootdir_len = 0;
+        }
+    }
+
     /* Fill in the packet */
     packet->header.version = TALPA_PROTOCOL_VERSION;
     packet->header.payloadLength = len - sizeof(struct TalpaProtocolHeader);
@@ -658,19 +693,43 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     packet->gid = userInfo->gid(userInfo);
     packet->egid = userInfo->egid(userInfo);
     {
+        size_t pos = sizeof(struct TalpaPacketFragment_FileDetails);
         struct TalpaPacketFragment_FileDetails* file = (struct TalpaPacketFragment_FileDetails *)(((char *)packet) + sizeof(struct TalpaPacket_VettingDetails));
         file->operation = this->mFOPLookup[operation];
         file->flags = info->flags(info);
         file->mode = info->mode(info);
         if ( likely(filename != NULL) )
         {
-            strcpy(((char *)file) + sizeof(struct TalpaPacketFragment_FileDetails), filename);
+            strcpy(((char *)file) + pos, filename);
+            pos += filename_len;
         }
+#ifdef TALPA_MNT_NAMESPACE
         if (info->isNonRootNamespace(info))
         {
-            /* we're in a namespace/container, append '(namespace)' to the path */
-            strcpy(((char *)file) + sizeof(struct TalpaPacketFragment_FileDetails)+filename_len, " (namespace)");
+            if (rootUtsNamespace)
+            {
+                /* we're in a namespace/container, append '(namespace)' to the path */
+                strcpy(((char *)file) + pos, " (namespace)");
+                pos += 12;
+            }
+            else
+            {
+                /* we're in a namespace/container, append '(namespace)' to the path */
+                strcpy(((char *)file) + pos, " (container");
+                pos += 11;
+
+                if ( hostname != NULL)
+                {
+                    strcpy(((char *)file) + pos, " hostname=");
+                    pos += 10;
+                    strcpy(((char *)file) + pos, hostname);
+                    pos += strlen(hostname);
+                }
+                strcpy(((char *)file) + pos, ")");
+                pos += 1;
+            }
         }
+#endif
     }
 
     /* Fill in the rest... */
@@ -753,6 +812,8 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
         {
             if ( local_filename )
             {
+                bool retryOpen = true;
+
                 /* Use just the process relative part of the filename if the process is
                     not at the system root. It used
                     to be rootdir_len > 1 but userspace wants to have a special case. */
@@ -761,11 +822,16 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
                     local_filename += rootdir_len;
                 }
 
-
 #ifdef TALPA_RESTRICT_OPEN_DURING_EXIT
-                if ((current->flags & PF_EXITING) == 0)
+                if ((current->flags & PF_EXITING) != 0)
                 {
+                    retryOpen = false;
+                    dbg("[intercepted %u-%u-%u] failed to openDentry %d - can't open %s due to process exiting",processParentPID(current), current->tgid, current->pid, ret,local_filename);
+                }
 #endif
+
+                if (retryOpen)
+                {
                     /* Open the file for the stream server. Use the appropriate method depending on operation code. */
                     if ( unlikely( operation == EFS_Exec ) )
                     {
@@ -783,13 +849,7 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
                             ret = details->file->openExec(file->object, local_filename);
                         }
                     }
-#ifdef TALPA_RESTRICT_OPEN_DURING_EXIT
                 }
-                else
-                {
-                    dbg("[intercepted %u-%u-%u] failed to openDentry %d - can't open %s due to process exiting",processParentPID(current), current->tgid, current->pid, ret,local_filename);
-                }
-#endif
             }
             else
             {
@@ -799,7 +859,14 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
 
         if ( unlikely( ret != 0 ) )
         {
-            err("[intercepted %u-%u-%u] Open failed (%d), will have no stream", processParentPID(current), current->tgid, current->pid, ret);
+                if (info->isInProcessNamespace(info))
+                {
+                    err("[intercepted %u-%u-%u] Open failed (%d), will have no stream", processParentPID(current), current->tgid, current->pid, ret);
+                }
+                else
+                {
+                    dbg("[intercepted %u-%u-%u] Open failed (%d), file is not in process's mount namespace", processParentPID(current), current->tgid, current->pid, ret);
+                }
         }
         else
         {
@@ -811,28 +878,44 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
         dbg("[intercepted %u-%u-%u] File already open", processParentPID(current), current->tgid, current->pid);
     }
 
-    /* Get the next vettingId */
-    talpa_simple_lock(&this->mVettingIDLock);
-    packet->vettingID = details->vettingID = ++this->mNextVettingID;
-    talpa_simple_unlock(&this->mVettingIDLock);
-    dbg("[intercepted %u-%u-%u] vettingID = %u", processParentPID(current), current->tgid, current->pid, details->vettingID);
+    if (ret != 0 && !info->isInProcessNamespace(info))
+    {
+        /*
+         * Files that aren't readable by the process (e.g. execute only binaries)
+         * That we can't open with openExec, because the 'path' available isn't
+         * accessible by the process itself.
+         *
+         * Should already have been scanned via in-process namespace before we get here.
+         */
+        dbg("[intercepted %u-%u-%u] Skipping %s because we can't open it",
+            processParentPID(current), current->tgid, current->pid,
+            local_filename);
+    }
+    else
+    {
+        /* Get the next vettingId */
+        talpa_simple_lock(&this->mVettingIDLock);
+        packet->vettingID = details->vettingID = ++this->mNextVettingID;
+        talpa_simple_unlock(&this->mVettingIDLock);
+        dbg("[intercepted %u-%u-%u] vettingID = %u", processParentPID(current), current->tgid, current->pid, details->vettingID);
 
-    /* Increase the reference count on objects provided by standard intercept process. */
-    /* Note, file is taken earlier above! */
-    report->get(report);
-    userInfo->get(userInfo);
-    info->get(info);
+        /* Increase the reference count on objects provided by standard intercept process. */
+        /* Note, file is taken earlier above! */
+        report->get(report);
+        userInfo->get(userInfo);
+        info->get(info);
 
-    /* Insert the details on a list */
-    talpa_group_lock(&group->lock);
-    talpa_list_add_tail(&details->head, &group->intercepted);
-    talpa_group_unlock(&group->lock);
+        /* Insert the details on a list */
+        talpa_group_lock(&group->lock);
+        talpa_list_add_tail(&details->head, &group->intercepted);
+        talpa_group_unlock(&group->lock);
 
-    /* Wake up the clients */
-    wake_up(&group->clientWaitQueue);
+        /* Wake up the clients */
+        wake_up(&group->clientWaitQueue);
 
-    /* Wait for the response from vetting client */
-    waitVettingResponse(this, group, details, local_filename, &this->mTimeout);
+        /* Wait for the response from vetting client */
+        waitVettingResponse(this, group, details, local_filename, &this->mTimeout);
+    }
 
     /* Now returning control to intercepted process,
         destroy everything we have created. Since objects are reference counted
@@ -916,7 +999,8 @@ static void examineFilesystem(const void* self, IEvaluationReport* report,
         return;
     }
 
-    dbg("[intercepted %u-%u-%u] allocated %lu bytes at 0x%p for vetting details", processParentPID(current), current->tgid, current->pid, (long unsigned int) sizeof(VettingDetails), details);
+    dbg("[intercepted %u-%u-%u] allocated %lu bytes at 0x%p for vetting details",
+        processParentPID(current), current->tgid, current->pid, (long unsigned int) sizeof(VettingDetails), details);
 
     /* See how much memory do we need for VettingDetails packet */
     rootdir = threadInfo->rootDir(threadInfo);
@@ -1973,6 +2057,10 @@ static struct TalpaProtocolHeader* vettingResponse(void* self, VettingClient* cl
             break;
         case TALPA_TIMEOUT:
             job->report->setRecommendedAction(job->report, EIA_Timeout);
+            if ( this->mTimeoutDeny )
+            {
+                job->report->setErrorCode(job->report->object, ETIME);
+            }
             break;
         default:
             dbg("[%u] Client responded with a unknown response %u!", (unsigned int)client->id, packet->response);
@@ -2525,6 +2613,19 @@ static void  setConfig(void* self, const char* name, const char* value)
     else if ( !strcmp(name, CFG_FSTIMEOUT) )
     {
         setFSTimeout(this, value);
+    }
+    else if ( !strcmp(name, CFG_TIMEOUTDENY) )
+    {
+        if (strcmp(value, CFG_ACTION_ENABLE) == 0)
+        {
+            this->mTimeoutDeny = true;
+            strcpy(this->mTimeoutDenyConfigData.value, CFG_VALUE_ENABLED);
+        }
+        else if (strcmp(value, CFG_ACTION_DISABLE) == 0)
+        {
+            this->mTimeoutDeny = false;
+            strcpy(this->mTimeoutDenyConfigData.value, CFG_VALUE_DISABLED);
+        }
     }
     else if ( !strcmp(name, CFG_ROUTING) )
     {

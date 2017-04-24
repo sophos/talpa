@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -126,6 +126,7 @@ struct talpa_cacheobj
 #define TALPA_TEST_CACHE_CLEAR          _IOW ( 0xff,    28,     struct talpa_cacheobj* )
 #define TALPA_TEST_CACHE_CONFIG         _IOW ( 0xff,    29,     char* )
 #define TALPA_TEST_CACHE_PURGE          _IO  ( 0xff,    30 )
+#define TALPA_TEST_SET_ERROR_CODE       _IOW ( 0xff,    31,     int )
 
 
 #ifdef __KERNEL__

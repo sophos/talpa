@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -219,7 +219,9 @@ static int examineFileInfo(const void* self, const IFileInfo* info, IFile* file)
      * OK. Lets look at our verdict - if next assume allow.
      */
     if ((evalReport->i_IEvaluationReport.recommendedAction(evalReport) == EIA_Next)
-        || (evalReport->i_IEvaluationReport.recommendedAction(evalReport) == EIA_Allow))
+        || (evalReport->i_IEvaluationReport.recommendedAction(evalReport) == EIA_Allow)
+        || ((evalReport->i_IEvaluationReport.recommendedAction(evalReport) == EIA_Timeout)
+            && (evalReport->i_IEvaluationReport.errorCode(evalReport) != ETIME)))
     {
         actionList = &this->mAllowActions;
     }
@@ -271,7 +273,7 @@ static int examineFileInfo(const void* self, const IFileInfo* info, IFile* file)
         case EIA_Error:
             return -retCode;
         case EIA_Timeout:
-            return -ETIME;
+            return -retCode;
         case EIA_Deny:
             return -EPERM;
         case EIA_Restart:
@@ -447,7 +449,7 @@ static int runAllowChain(const void* self, const IFileInfo* info)
         case EIA_Error:
             return -retCode;
         case EIA_Timeout:
-            return -ETIME;
+            return -retCode;
         case EIA_Deny:
             return -EPERM;
         case EIA_Restart:
@@ -517,7 +519,10 @@ static int examineFilesystemInfo(const void* self, const IFilesystemInfo* info)
      * OK. Lets look at our verdict - if timeout/next assume allow.
      */
     if ((evalReport->i_IEvaluationReport.recommendedAction(evalReport) == EIA_Next)
-        || (evalReport->i_IEvaluationReport.recommendedAction(evalReport) == EIA_Allow))
+        || (evalReport->i_IEvaluationReport.recommendedAction(evalReport) == EIA_Allow)
+        || ((evalReport->i_IEvaluationReport.recommendedAction(evalReport) == EIA_Timeout)
+            && (evalReport->i_IEvaluationReport.errorCode(evalReport) != ETIME)))
+
     {
         actionList = &this->mAllowActions;
     }
@@ -574,7 +579,7 @@ static int examineFilesystemInfo(const void* self, const IFilesystemInfo* info)
         case EIA_Error:
             return -retCode;
         case EIA_Timeout:
-            return -ETIME;
+            return -retCode;
         case EIA_Deny:
             return -EPERM;
         case EIA_Restart:

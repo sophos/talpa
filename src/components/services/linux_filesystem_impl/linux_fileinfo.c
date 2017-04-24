@@ -3,7 +3,7 @@
 *
 * TALPA Filesystem Interceptor
 *
-* Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+* Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
 *
 * This program is free software; you can redistribute it and/or modify it under the terms of the
 * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -23,16 +23,16 @@
 #include <linux/string.h>
 #include <asm/uaccess.h>
 #include <linux/file.h>
+#include <linux/fs_struct.h>
 
 #include "common/talpa.h"
 #include "filesystem/isystemroot.h"
 #include "platforms/linux/alloc.h"
 #include "platforms/linux/glue.h"
+#include "platforms/linux/locking.h"
 #include "platforms/linux/vfs_mount.h"
 #include "linux_fileinfo.h"
 #include "app_ctrl/iportability_app_ctrl.h"
-
-
 
 #if  LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0)
 # ifndef f_vfsmnt
@@ -43,22 +43,23 @@
 /*
 * Forward declare implementation methods.
 */
-static void                  get                (const void* self);
-static EFilesystemOperation  operation          (const void* self);
-static const char*           filename           (const void* self);
-static unsigned int          flags              (const void* self);
-static unsigned int          mode               (const void* self);
-static unsigned long         inode              (const void* self);
-static bool                  isWritable         (const void* self);
-static unsigned int          isWritableAnywhere (const void* self);
-static uint64_t              device             (const void* self);
-static uint32_t              deviceMajor        (const void* self);
-static uint32_t              deviceMinor        (const void* self);
-static const char*           deviceName         (const void* self);
-static const char*           fsType             (const void* self);
-static bool                  fsObjects          (const void* self, void** obj1, void** obj2);
-static bool                  isDeleted          (const void* self);
-static bool                  isNonRootNamespace (const void* self);
+static void                  get                  (const void* self);
+static EFilesystemOperation  operation            (const void* self);
+static const char*           filename             (const void* self);
+static unsigned int          flags                (const void* self);
+static unsigned int          mode                 (const void* self);
+static unsigned long         inode                (const void* self);
+static bool                  isWritable           (const void* self);
+static unsigned int          isWritableAnywhere   (const void* self);
+static uint64_t              device               (const void* self);
+static uint32_t              deviceMajor          (const void* self);
+static uint32_t              deviceMinor          (const void* self);
+static const char*           deviceName           (const void* self);
+static const char*           fsType               (const void* self);
+static bool                  fsObjects            (const void* self, void** obj1, void** obj2);
+static bool                  isDeleted            (const void* self);
+static bool                  isNonRootNamespace   (const void* self);
+static bool                  isInProcessNamespace (const void* self);
 static void deleteLinuxFileInfo(struct tag_LinuxFileInfo* object);
 
 
@@ -84,26 +85,29 @@ static LinuxFileInfo template_LinuxFileInfo =
             fsObjects,
             isDeleted,
             isNonRootNamespace,
+            isInProcessNamespace,
             NULL,
             (void (*)(const void*))deleteLinuxFileInfo
         },
         deleteLinuxFileInfo,
-        ATOMIC_INIT(1),
-        0,
-        NULL,
-        0,
-        0,
-        0,
-        0,
-        NULL,
-        NULL,
-        NULL,
-        0,
-        0,
-        0,
-        NULL,
-        NULL,
-        NULL
+        ATOMIC_INIT(1), /* mRefCnt */
+        0, /* mOperation */
+        NULL, /* mFilename */
+        0, /* mFlags */
+        0, /* mMode */
+        0, /* mIno */
+        0, /* mWriteCount */
+        NULL, /* mInode */
+        NULL, /* mDentry */
+        NULL, /* mVFSMount */
+        0, /* mDevice */
+        0, /* mDeviceMajor */
+        0, /* mDeviceMinor */
+        NULL, /* mPath */
+        NULL, /* mDeviceName */
+        NULL, /* mFSType */
+        false, /* mIsNonRootNamespace */
+        true /* mIsInProcessMntNamespace */
     };
 #define this    ((LinuxFileInfo*)self)
 
@@ -124,7 +128,6 @@ LinuxFileInfo* newLinuxFileInfo(EFilesystemOperation operation, const char* file
     int rc;
     size_t path_size = 0;
     ISystemRoot* root;
-
 
     object = talpa_alloc(sizeof(template_LinuxFileInfo));
     if (unlikely(object == NULL))
@@ -169,7 +172,10 @@ LinuxFileInfo* newLinuxFileInfo(EFilesystemOperation operation, const char* file
 
     root = TALPA_Portability()->systemRoot();
 
-    object->mFilename = talpa__d_path(dentry, mnt, root->directoryEntry(root->object), root->mountPoint(root->object), object->mPath, path_size, &object->mIsNonRootNamespace);
+    object->mFilename = talpa__d_namespace_path(dentry, mnt,
+                root->directoryEntry(root->object), root->mountPoint(root->object),
+                object->mPath, path_size, &object->mIsNonRootNamespace, &object->mIsInProcessMntNamespace);
+
     if (unlikely(object->mFilename == NULL))
     {
         critical("newLinuxFileInfo: talpa__d_path returned NULL");
@@ -185,7 +191,7 @@ LinuxFileInfo* newLinuxFileInfo(EFilesystemOperation operation, const char* file
     object->mDevice = kdev_t_to_nr(inode_dev(dentry->d_inode));
     object->mDeviceMajor = MAJOR(inode_dev(dentry->d_inode));
     object->mDeviceMinor = MINOR(inode_dev(dentry->d_inode));
-/*                 dbg("%s, F:0x%x, M:0x%x, D:0x%x",object->mFilename,object->mFlags,object->mMode,(unsigned int)object->mDevice); */
+    /* dbg("newLinuxFileInfo: %s, F:0x%x, M:0x%x, D:0x%x",object->mFilename,object->mFlags,object->mMode,(unsigned int)object->mDevice); */
 
     exit:
 
@@ -226,7 +232,9 @@ LinuxFileInfo* newLinuxFileInfoFromFd(EFilesystemOperation operation, int fd)
         {
             ISystemRoot* root = TALPA_Portability()->systemRoot();
 
-            object->mFilename = talpa__d_path(file->f_dentry, file->f_vfsmnt, root->directoryEntry(root->object), root->mountPoint(root->object), object->mPath, path_size, &object->mIsNonRootNamespace);
+            object->mFilename = talpa__d_namespace_path(file->f_dentry, file->f_vfsmnt,
+                        root->directoryEntry(root->object), root->mountPoint(root->object),
+                        object->mPath, path_size, &object->mIsNonRootNamespace, &object->mIsInProcessMntNamespace);
             if (unlikely(object->mFilename == NULL))
             {
                 critical("newLinuxFileInfoFromFd: talpa__d_path returned NULL");
@@ -250,7 +258,7 @@ LinuxFileInfo* newLinuxFileInfoFromFd(EFilesystemOperation operation, int fd)
             {
                 dbg("NO DENTRY/INODE!");
             }
-//             dbg("%s, F:0x%x, M:0x%x, D:0x%x",object->mFilename,object->mFlags,object->mMode,(unsigned int)object->mDevice);
+            /* dbg("newLinuxFileInfoFromFd: %s, F:0x%x, M:0x%x, D:0x%x",object->mFilename,object->mFlags,object->mMode,(unsigned int)object->mDevice); */
             fput(file);
         }
         else
@@ -273,7 +281,6 @@ LinuxFileInfo* newLinuxFileInfoFromFile(EFilesystemOperation operation, void* fi
     struct inode* inode;
     ISystemRoot* root;
     size_t path_size = 0;
-
 
     file = (struct file *)fileobj;
 
@@ -304,7 +311,11 @@ LinuxFileInfo* newLinuxFileInfoFromFile(EFilesystemOperation operation, void* fi
     inode = file->f_dentry->d_inode;
     root = TALPA_Portability()->systemRoot();
 
-    fi->mFilename = talpa__d_path(file->f_dentry, file->f_vfsmnt, root->directoryEntry(root->object), root->mountPoint(root->object), fi->mPath, path_size, &fi->mIsNonRootNamespace);
+    /* dbg("systemRoot dentry=%p, vfsmnt=%p", root->directoryEntry(root->object), root->mountPoint(root->object)); */
+
+    fi->mFilename = talpa__d_namespace_path(file->f_dentry, file->f_vfsmnt,
+                root->directoryEntry(root->object), root->mountPoint(root->object),
+                fi->mPath, path_size, &fi->mIsNonRootNamespace, &fi->mIsInProcessMntNamespace);
 
     fi->mOperation = operation;
     fi->mFlags = file->f_flags;
@@ -316,6 +327,8 @@ LinuxFileInfo* newLinuxFileInfoFromFile(EFilesystemOperation operation, void* fi
     fi->mDevice = kdev_t_to_nr(inode_dev(inode));
     fi->mDeviceMajor = MAJOR(inode_dev(inode));
     fi->mDeviceMinor = MINOR(inode_dev(inode));
+
+    /* dbg("newLinuxFileInfoFromFile: %s, F:0x%x, M:0x%x, D:0x%x, P:%d",fi->mFilename,fi->mFlags,fi->mMode,(unsigned int)fi->mDevice, current->pid); */
 
     return fi;
 }
@@ -360,8 +373,9 @@ LinuxFileInfo* newLinuxFileInfoFromDirectoryEntry(EFilesystemOperation operation
     vfsmnt = (struct vfsmount *)mntobj;
     root = TALPA_Portability()->systemRoot();
 
-    fi->mFilename = talpa__d_path(dentry, vfsmnt, root->directoryEntry(root->object), root->mountPoint(root->object),
-        fi->mPath, path_size, &fi->mIsNonRootNamespace);
+    fi->mFilename = talpa__d_namespace_path(dentry, vfsmnt,
+                root->directoryEntry(root->object), root->mountPoint(root->object),
+                fi->mPath, path_size, &fi->mIsNonRootNamespace, &fi->mIsInProcessMntNamespace);
     if (unlikely(fi->mFilename == NULL))
     {
         critical("newLinuxFileInfoFromDirectoryEntry: talpa__d_path returned NULL");
@@ -389,6 +403,8 @@ LinuxFileInfo* newLinuxFileInfoFromDirectoryEntry(EFilesystemOperation operation
         fi->mDeviceMajor = MAJOR(inode_dev(inode));
         fi->mDeviceMinor = MINOR(inode_dev(inode));
     }
+
+    /* dbg("newLinuxFileInfoFromDirectoryEntry: %s, F:0x%x, M:0x%x, D:0x%x",fi->mFilename,fi->mFlags,fi->mMode,(unsigned int)fi->mDevice); */
 
     return fi;
 }
@@ -586,6 +602,12 @@ static bool isDeleted(const void* self)
 static bool isNonRootNamespace(const void* self)
 {
     return this->mIsNonRootNamespace;
+}
+
+
+static bool isInProcessNamespace(const void* self)
+{
+    return this->mIsInProcessMntNamespace;
 }
 
 /*

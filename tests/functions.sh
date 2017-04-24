@@ -150,6 +150,7 @@ else
         rmmod tlp-stdinterceptor 2>/dev/null
         rmmod tlp-inclusion 2>/dev/null
         rmmod tlp-opexcl 2>/dev/null
+        rmmod tlp-allowsyslog 2>/dev/null
         rmmod tlp-denysyslog 2>/dev/null
         rmmod tlp-threadinfo 2>/dev/null
         rmmod tlp-exclusion 2>/dev/null

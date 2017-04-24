@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -40,6 +40,7 @@
  */
 static void* directoryEntry(const void* self);
 static void* mountPoint(const void* self);
+static void* utsNamespace(const void* self);
 static void deleteLinuxSystemRoot(struct tag_LinuxSystemRoot* object);
 
 
@@ -51,12 +52,14 @@ static LinuxSystemRoot template_LinuxSystemRoot =
         {
             directoryEntry,
             mountPoint,
+            utsNamespace,
             NULL,
             (void (*)(void*))deleteLinuxSystemRoot
         },
         deleteLinuxSystemRoot,
         NULL,
-        NULL
+        NULL,
+        NULL /* mUtsNamespace */
 };
 #define this    ((LinuxSystemRoot*)self)
 
@@ -107,6 +110,7 @@ LinuxSystemRoot* newLinuxSystemRoot(void)
                 atomic_inc(&init_fs->count);
 #endif
             }
+            object->mUtsNamespace = getUtsNamespace(inittask);
             task_unlock(inittask);
 
             if ( init_fs )
@@ -156,6 +160,7 @@ restart_mnt:
 
             return NULL;
         }
+
     }
 
     return object;
@@ -181,6 +186,11 @@ static void* directoryEntry(const void* self)
 static void* mountPoint(const void* self)
 {
     return this->mMnt;
+}
+
+static void* utsNamespace(const void* self)
+{
+    return this->mUtsNamespace;
 }
 
 /*

@@ -3,7 +3,7 @@
 #
 # TALPA Filesystem Interceptor
 #
-# Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+# Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
 #
 # This program is free software; you can redistribute it and/or modify it under the terms of the
 # GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -48,6 +48,7 @@ CHECKMODULES := \
            tlp-stdinterceptor.ko \
            tlp-inclusion.ko \
            tlp-opexcl.ko \
+           tlp-allowsyslog.ko \
            tlp-denysyslog.ko \
            tlp-threadinfo.ko \
            tlp-exclusion.ko \
@@ -72,7 +73,7 @@ CHECKMODULES += tlp-dualfs.ko
 endif
 
 ## Not handled by automake (2.6 only)
-CHECKMODULESRC += tlp_securityfs.c tlp_dualfs.c 
+CHECKMODULESRC += tlp_securityfs.c tlp_dualfs.c
 EXTRA_DIST += $(CHECKMODULESRC)
 
 modulesdir     = $(libdir)/modules
@@ -103,6 +104,7 @@ check_PROGRAMS          =   tlp-personality.o \
                             tlp-stdinterceptor.o \
                             tlp-inclusion.o \
                             tlp-opexcl.o \
+                            tlp-allowsyslog.o \
                             tlp-denysyslog.o \
                             tlp-threadinfo.o \
                             tlp-exclusion.o \
@@ -168,6 +170,11 @@ tlp_opexcl_o_SOURCES    =  $(tlpOpExclSOURCES)
 tlp_opexcl_o_CFLAGS     =   $(modules_CFLAGS)
 tlp_opexcl_o_LINK       =   $(MODULELINKCMD)
 
+tlp_allowsyslog_o_SOURCES    =  $(tlpAllowSyslogSOURCES)
+
+tlp_allowsyslog_o_CFLAGS     =   $(modules_CFLAGS)
+tlp_allowsyslog_o_LINK       =   $(MODULELINKCMD)
+
 tlp_denysyslog_o_SOURCES    =  $(tlpDenySyslogSOURCES)
 
 tlp_denysyslog_o_CFLAGS     =   $(modules_CFLAGS)
@@ -226,6 +233,7 @@ CHECKMODULESRC += $(tlp_procfs_o_SOURCES)
 CHECKMODULESRC += $(tlp_stdinterceptor_o_SOURCES)
 CHECKMODULESRC += $(tlp_inclusion_o_SOURCES)
 CHECKMODULESRC += $(tlp_opexcl_o_SOURCES)
+CHECKMODULESRC += $(tlp_allowsyslog_o_SOURCES)
 CHECKMODULESRC += $(tlp_denysyslog_o_SOURCES)
 CHECKMODULESRC += $(tlp_threadinfo_o_SOURCES)
 CHECKMODULESRC += $(tlp_exclusion_o_SOURCES)

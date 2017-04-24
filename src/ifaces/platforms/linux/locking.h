@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -134,6 +134,17 @@ typedef rwlock_t talpa_rcu_lock_t;
 /* No more BKL, so the best we can do is put in a memory barrier and hope */
 #define talpa_lock_kernel       smp_mb
 #define talpa_unlock_kernel     smp_mb
+#endif
+
+/**
+ * What sort of lock is required for proc->fs->lock ?
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+#define talpa_proc_fs_lock   spin_lock
+#define talpa_proc_fs_unlock spin_unlock
+#else
+#define talpa_proc_fs_lock   read_lock
+#define talpa_proc_fs_unlock read_unlock
 #endif
 
 #endif

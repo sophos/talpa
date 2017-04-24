@@ -1,5 +1,5 @@
 /*
- * deny_syslog.c
+ * allow_syslog.c
  *
  * TALPA Filesystem Interceptor
  *
@@ -21,9 +21,9 @@
 #include <linux/string.h>
 #include <linux/sched.h>
 
-#define TALPA_SUBSYS "deny"
+#define TALPA_SUBSYS "allow"
 #include "common/talpa.h"
-#include "deny_syslog.h"
+#include "allow_syslog.h"
 
 #include "platform/alloc.h"
 
@@ -39,7 +39,7 @@ static const char* configName(const void* self);
 static const PODConfigurationElement* allConfig(const void* self);
 static const char* config(const void* self, const char* name);
 static void setConfig(void* self, const char* name, const char* value);
-static void deleteDenySyslogFilter(struct tag_DenySyslogFilter* object);
+static void deleteAllowSyslogFilter(struct tag_AllowSyslogFilter* object);
 
 /*
  * Constants
@@ -53,7 +53,7 @@ static void deleteDenySyslogFilter(struct tag_DenySyslogFilter* object);
 /*
  * Template Object.
  */
-static DenySyslogFilter template_DenySyslogFilter =
+static AllowSyslogFilter template_AllowSyslogFilter =
     {
         {
             examineFile,
@@ -63,7 +63,7 @@ static DenySyslogFilter template_DenySyslogFilter =
             disable,
             isEnabled,
             NULL,
-            (void (*)(void*))deleteDenySyslogFilter
+            (void (*)(void*))deleteAllowSyslogFilter
         },
         {
             configName,
@@ -71,35 +71,35 @@ static DenySyslogFilter template_DenySyslogFilter =
             config,
             setConfig,
             NULL,
-            (void (*)(void*))deleteDenySyslogFilter
+            (void (*)(void*))deleteAllowSyslogFilter
         },
-        deleteDenySyslogFilter,
+        deleteAllowSyslogFilter,
         TALPA_MUTEX_INIT,
         true,
-        "DenySyslog",
+        "AllowSyslog",
         {
-            {NULL, NULL, DENYSYSLOGFILTER_CFGDATASIZE, true, true },
+            {NULL, NULL, ALLOWSYSLOGFILTER_CFGDATASIZE, true, true },
             {NULL, NULL, 0, false, false }
         },
         { CFG_STATUS, CFG_VALUE_ENABLED }
 
     };
-#define this    ((DenySyslogFilter*)self)
+#define this    ((AllowSyslogFilter*)self)
 
 
 
 /*
  * Object creation/destruction.
  */
-DenySyslogFilter* newDenySyslogFilter(const char *name)
+AllowSyslogFilter* newAllowSyslogFilter(const char *name)
 {
-    DenySyslogFilter* object;
+    AllowSyslogFilter* object;
 
 
-    object = talpa_alloc(sizeof(template_DenySyslogFilter));
+    object = talpa_alloc(sizeof(template_AllowSyslogFilter));
     if ( object )
     {
-        memcpy(object, &template_DenySyslogFilter, sizeof(template_DenySyslogFilter));
+        memcpy(object, &template_AllowSyslogFilter, sizeof(template_AllowSyslogFilter));
         object->i_IInterceptFilter.object = object->i_IConfigurable.object = object;
 
         talpa_mutex_init(&object->mConfigSerialize);
@@ -113,7 +113,7 @@ DenySyslogFilter* newDenySyslogFilter(const char *name)
     return object;
 }
 
-static void deleteDenySyslogFilter(struct tag_DenySyslogFilter* object)
+static void deleteAllowSyslogFilter(struct tag_AllowSyslogFilter* object)
 {
     talpa_free(object);
     return;
@@ -183,7 +183,6 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     char* opmsg;
     char* actmsg;
 
-
     /* Don't log if interrupted by signal on close. */
     if (    (!report->hasBeenExternallyVetted(report->object))
          && (info->operation(info->object) == EFS_Close)
@@ -192,9 +191,9 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
         return;
     }
 
-    /* Don't log timeout if error code is unset (allow) */
-    if ( (report->recommendedAction(report) == EIA_Timeout)
-        && (report->errorCode(report->object) != ETIME) )
+    /* Don't log unless this is a timeout and error code is unset (allow) */
+    if ( (report->recommendedAction(report) != EIA_Timeout)
+        || (report->errorCode(report->object) == ETIME) )
     {
         return;
     }
@@ -218,9 +217,9 @@ static void examineFilesystem(const void* self, IEvaluationReport* report, const
     char* opmsg;
     char* actmsg;
 
-    /* Don't log timeout if error code is unset (allow) */
-    if ( (report->recommendedAction(report) == EIA_Timeout)
-        && (report->errorCode(report->object) != ETIME) )
+    /* Don't log unless this is a timeout and error code is unset (allow) */
+    if ( (report->recommendedAction(report) != EIA_Timeout)
+        || (report->errorCode(report->object) == ETIME) )
     {
         return;
     }
@@ -351,6 +350,6 @@ static void  setConfig(void* self, const char* name, const char* value)
 }
 
 /*
- * End of deny_syslog.c
+ * End of allow_syslog.c
  */
 

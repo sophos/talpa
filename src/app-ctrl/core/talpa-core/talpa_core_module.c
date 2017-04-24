@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -34,6 +34,7 @@
 #include "components/core/intercept_processing_impl/std_intercept_processor.h"
 #include "components/core/intercept_filters_impl/syslog/syslog_filter.h"
 #include "components/core/intercept_filters_impl/deny_syslog/deny_syslog.h"
+#include "components/core/intercept_filters_impl/allow_syslog/allow_syslog.h"
 #include "components/core/intercept_filters_impl/fsobj_incl/filesystem_inclusion_processor.h"
 #include "components/core/intercept_filters_impl/fsobj_excl/filesystem_exclusion_processor.h"
 #include "components/core/intercept_filters_impl/operation_excl/operation_excl.h"
@@ -71,6 +72,7 @@ const char talpa_version[] = "$TALPA_VERSION:" TALPA_VERSION;
 static StandardInterceptProcessor*      mProcessor;
 static SyslogFilter*                    mDebugSyslog;
 static DenySyslogFilter*                mDenySyslog;
+static AllowSyslogFilter*               mAllowSyslog;
 static FilesystemInclusionProcessor*    mInclusion;
 static FilesystemExclusionProcessor*    mExclusion;
 static OperationExclusionProcessor*     mOpExcl;
@@ -176,6 +178,11 @@ static void deleteGlobals(void)
         dbg("Deleting Deny Syslog filter");
         mDenySyslog->delete(mDenySyslog);
     }
+    if ( mAllowSyslog )
+    {
+        dbg("Deleting Allow Syslog filter");
+        mAllowSyslog->delete(mAllowSyslog);
+    }
     if ( mProcessor )
     {
         dbg("Deleting Processor");
@@ -252,6 +259,13 @@ static int __init talpa_core_init(void)
     if ( !mDenySyslog )
     {
         err("Failed to create deny syslog filter!");
+        goto failed;
+    }
+
+    mAllowSyslog = newAllowSyslogFilter("AllowSyslog");
+    if ( !mAllowSyslog )
+    {
+        err("Failed to create allow syslog filter!");
         goto failed;
     }
 
@@ -339,6 +353,7 @@ static int __init talpa_core_init(void)
     ATTACH_CONFIG_OR_FAIL(ECG_InterceptFilter, mOpExcl);
     ATTACH_CONFIG_OR_FAIL(ECG_InterceptFilter, mDebugSyslog);
     ATTACH_CONFIG_OR_FAIL(ECG_InterceptFilter, mDenySyslog);
+    ATTACH_CONFIG_OR_FAIL(ECG_InterceptFilter, mAllowSyslog);
     ATTACH_CONFIG_OR_FAIL(ECG_InterceptFilter, mCache);
 
     /*
@@ -357,6 +372,7 @@ static int __init talpa_core_init(void)
     mProcessor->i_IInterceptProcessor.addEvaluationFilter(mProcessor, &mVetCtrl->i_IInterceptFilter);
 
     mProcessor->i_IInterceptProcessor.addAllowFilter(mProcessor, &mCacheAllow->i_IInterceptFilter);
+    mProcessor->i_IInterceptProcessor.addAllowFilter(mProcessor, &mAllowSyslog->i_IInterceptFilter);
 
     mProcessor->i_IInterceptProcessor.addDenyFilter(mProcessor, &mCacheDeny->i_IInterceptFilter);
     mProcessor->i_IInterceptProcessor.addDenyFilter(mProcessor, &mDenySyslog->i_IInterceptFilter);
@@ -388,7 +404,9 @@ static void __exit talpa_core_exit(void)
 
     dbg("Detaching Cache configurator");
     mConfig->detach(mConfig->object, &mCache->i_IConfigurable);
-    dbg("Detaching Deny Syslog configurator");
+    dbg("Detaching Allow Syslog configurator");
+    mConfig->detach(mConfig->object, &mAllowSyslog->i_IConfigurable);
+    dbg("Detaching Debug Syslog configurator");
     mConfig->detach(mConfig->object, &mDenySyslog->i_IConfigurable);
     dbg("Detaching Debug Syslog configurator");
     mConfig->detach(mConfig->object, &mDebugSyslog->i_IConfigurable);
