@@ -3,7 +3,7 @@
 *
 * TALPA Filesystem Interceptor
 *
-* Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
+* Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
 *
 * This program is free software; you can redistribute it and/or modify it under the terms of the
 * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -28,6 +28,11 @@
 
 #ifdef TALPA_HAS_PROBE_KERNEL_READ
 # include <linux/uaccess.h>
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+# include <linux/sched/task.h>
+# include <linux/sched/signal.h>
 #endif
 
 #include <asm/uaccess.h>

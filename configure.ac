@@ -57,6 +57,8 @@ test -x "${XARGS}" || AC_MSG_ERROR([Please install xargs before configuring])
 #
 AC_PREFIX_DEFAULT(/opt/talpa)
 
+compile_flags=
+
 AC_ARG_ENABLE(talpa-build,
             [  --disable-talpa-build          configure building of talpa [[build]]],
             [talpabuild=$enableval],
@@ -2039,7 +2041,9 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@linuxuidgid@/${linuxuidgid}/; \
                 s/@lookup_mnt_last@/${lookup_mnt_last}/; \
                 s/@vfsmount_namespace@/${vfsmount_namespace}/; \
-                s/@builddualfs@/${builddualfs}/; s/@dualfs@/${dualfs}/;" ${srcdir}/Makefile26.in >${srcdir}/Makefile
+                s/@compile_flags@/${compile_flags}/; \
+                s/@builddualfs@/${builddualfs}/; \
+                s/@dualfs@/${dualfs}/;" ${srcdir}/Makefile26.in >${srcdir}/Makefile
 
     ${SED} -e  "s/@talpaversion@/${talpaversion}/; \
                 s/@debug@/${debug}/; \
@@ -2102,6 +2106,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s!@autoconf_h_include@!${autoconf_h_include}!; \
                 s/@lookup_mnt_last@/${lookup_mnt_last}/; \
                 s/@vfsmount_namespace@/${vfsmount_namespace}/; \
+                s/@compile_flags@/${compile_flags}/; \
                 s/@dualfs@/${dualfs}/;" ${srcdir}/tests/modules/Makefile26.in >${srcdir}/tests/modules/Makefile
 else
     AC_MSG_RESULT([2.4 build system detected])
