@@ -174,7 +174,7 @@ LinuxThreadInfo* newLinuxThreadInfo(void)
 #ifdef TALPA_HAS_PROBE_KERNEL_READ
                 if ( probe_kernel_read(object->mEnv, (void *)mm->env_start, object->mEnvSize) )
                 {
-                    err("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
+                    dbg("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
                     talpa_free(object->mEnv);
                     object->mEnv = NULL;
                     object->mEnvSize = 0;
@@ -187,11 +187,18 @@ LinuxThreadInfo* newLinuxThreadInfo(void)
                     up_write(&mm->mmap_sem); /* We don't actually need or want the lock while calling copy_from_user */
                     if ( copy_from_user(object->mEnv, (void *)mm->env_start, object->mEnvSize) )
                     {
-                        err("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
+                        err("Failed to copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
                         talpa_free(object->mEnv);
                         object->mEnv = NULL;
                         object->mEnvSize = 0;
                     }
+                }
+                else
+                {
+                    dbg("Can't take lock to copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
+                    talpa_free(object->mEnv);
+                    object->mEnv = NULL;
+                    object->mEnvSize = 0;
                 }
 #endif
             }
