@@ -41,6 +41,7 @@ EXTRA_CFLAGS += -I$(src)/src -I$(src)/src/ifaces -I$(src)/include \
 		@vfsmntlock@ \
 		@samefile@ \
 		@filldirbackport@ \
+		@mountrcubackport@ \
 		@binarysysctl@ \
 		@securityfs@ \
 		@dualfs@ \
@@ -50,6 +51,7 @@ EXTRA_CFLAGS += -I$(src)/src -I$(src)/src/ifaces -I$(src)/include \
 		@linuxuidgid@ \
 		@vfsunlink@ \
 		@lookup_mnt_last@ \
+		@get_fs_root_and_pwd@ \
 		@vfsmount_namespace@ \
         @compile_flags@
 

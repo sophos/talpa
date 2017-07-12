@@ -102,7 +102,12 @@ typedef struct talpa_replacement_mount_struct talpa_mount_struct;
     talpa_mount_struct *mnt_parent;
     struct dentry *mnt_mountpoint;
     struct vfsmount mnt;
- # if LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0)
+/**
+ * After 3.13 task and mount structs switch from full locking to
+ * RCU protection.
+ */
+ # if LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0) \
+    || defined TALPA_HAS_BACKPORTED_MOUNTRCU
     struct rcu_head mnt_rcu;
  # endif
  #ifdef CONFIG_SMP
@@ -247,6 +252,12 @@ int iterateFilesystems(struct vfsmount* root, int (*callback) (struct vfsmount* 
     struct list_head *nexthead = NULL;
     int ret;
     unsigned m_seq = 1;
+
+    if (unlikely(root == NULL))
+    {
+        err("iterateFilesystems: root == NULL");
+        return 1;
+    }
 
     mnt = real_mount(root);
     talpa_mntget(mnt); /* Take extra reference count for the loop */
