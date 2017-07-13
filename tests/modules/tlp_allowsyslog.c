@@ -26,7 +26,7 @@
 #include <linux/unistd.h>
 #include <linux/slab.h>
 #include <linux/string.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <asm/errno.h>
 
 #include "tlp-test.h"

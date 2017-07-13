@@ -35,7 +35,7 @@
 # include <linux/sched/signal.h>
 #endif
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #include "common/talpa.h"
 #include "app_ctrl/iportability_app_ctrl.h"

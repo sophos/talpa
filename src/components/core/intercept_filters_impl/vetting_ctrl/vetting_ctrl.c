@@ -18,7 +18,7 @@
  */
 
 #include <linux/kernel.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <linux/string.h>
 #include <linux/limits.h>
 #include <linux/sched.h>
