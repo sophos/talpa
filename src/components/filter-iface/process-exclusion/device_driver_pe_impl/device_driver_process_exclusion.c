@@ -21,7 +21,6 @@
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/poll.h>
@@ -55,6 +54,7 @@
 #define TALPA_SUBSYS "pedevice"
 #include "common/talpa.h"
 #include "platforms/linux/alloc.h"
+#include "platforms/linux/uaccess.h"
 #include "app_ctrl/icore_app_ctrl.h"
 #include "app_ctrl/iportability_app_ctrl.h"
 #include "device_driver_process_exclusion.h"

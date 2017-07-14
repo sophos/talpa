@@ -26,11 +26,11 @@
 #include <linux/unistd.h>
 #include <linux/slab.h>
 #include <linux/string.h>
-#include <linux/uaccess.h>
 #include <asm/errno.h>
 
 #include "tlp-test.h"
 
+#include "platform/uaccess.h"
 
 #include "common/bool.h"
 #define TALPA_SUBSYS "securityfstest"

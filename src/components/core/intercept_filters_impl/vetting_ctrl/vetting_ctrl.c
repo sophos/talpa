@@ -18,7 +18,6 @@
  */
 
 #include <linux/kernel.h>
-#include <linux/uaccess.h>
 #include <linux/string.h>
 #include <linux/limits.h>
 #include <linux/sched.h>
@@ -36,6 +35,7 @@
 #include "platform/quirks.h"
 #include "platform/alloc.h"
 #include "platform/vfs_mount.h"
+#include "platform/uaccess.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
 # define TALPA_RESTRICT_OPEN_DURING_EXIT

@@ -21,7 +21,6 @@
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/poll.h>
@@ -55,6 +54,7 @@
 #define TALPA_SUBSYS "vcdevice"
 #include "common/talpa.h"
 #include "platform/alloc.h"
+#include "platform/uaccess.h"
 #include "device_driver_vetting_client.h"
 
 /*

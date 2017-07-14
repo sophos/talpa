@@ -19,7 +19,6 @@
 */
 #include <linux/kernel.h>
 #include <linux/version.h>
-#include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/sched.h>
@@ -50,6 +49,7 @@
 #include "linux_file.h"
 #include "platforms/linux/glue.h"
 #include "platforms/linux/alloc.h"
+#include "platforms/linux/uaccess.h"
 
 
 /*

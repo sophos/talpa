@@ -22,11 +22,11 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/stat.h>
-#include <linux/uaccess.h>
 
 #include "common/talpa.h"
 #include "platforms/linux/alloc.h"
 #include "platforms/linux/glue.h"
+#include "platforms/linux/uaccess.h"
 #include "platforms/linux/vfs_mount.h"
 #include "linux_filesysteminfo.h"
 #include "filesystem/isystemroot.h"

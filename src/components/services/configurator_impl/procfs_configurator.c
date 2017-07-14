@@ -17,7 +17,6 @@
  *
  */
 #include <asm/errno.h>
-#include <linux/uaccess.h>
 
 #include <linux/kernel.h>
 #include <linux/version.h>
@@ -32,6 +31,7 @@
 #include "common/list.h"
 #include "configurator/pod_configuration_element.h"
 #include "platforms/linux/alloc.h"
+#include "platforms/linux/uaccess.h"
 
 #include "procfs_configurator.h"
 

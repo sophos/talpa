@@ -26,22 +26,17 @@
 #include <linux/tty.h>
 #include <linux/fs_struct.h>
 
-#ifdef TALPA_HAS_PROBE_KERNEL_READ
-# include <linux/uaccess.h>
-#endif
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
 # include <linux/sched/task.h>
 # include <linux/sched/signal.h>
 #endif
-
-#include <linux/uaccess.h>
 
 #include "common/talpa.h"
 #include "app_ctrl/iportability_app_ctrl.h"
 #include "platforms/linux/glue.h"
 #include "platforms/linux/locking.h"
 #include "platforms/linux/alloc.h"
+#include "platforms/linux/uaccess.h"
 
 #include "linux_threadinfo.h"
 

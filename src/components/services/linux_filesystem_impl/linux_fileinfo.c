@@ -21,7 +21,6 @@
 
 #include <linux/slab.h>
 #include <linux/string.h>
-#include <linux/uaccess.h>
 #include <linux/file.h>
 #include <linux/fs_struct.h>
 
@@ -30,6 +29,7 @@
 #include "platforms/linux/alloc.h"
 #include "platforms/linux/glue.h"
 #include "platforms/linux/locking.h"
+#include "platforms/linux/uaccess.h"
 #include "platforms/linux/vfs_mount.h"
 #include "linux_fileinfo.h"
 #include "app_ctrl/iportability_app_ctrl.h"

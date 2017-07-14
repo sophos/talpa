@@ -17,7 +17,6 @@
  *
  */
 #include <asm/errno.h>
-#include <linux/uaccess.h>
 
 #include <linux/kernel.h>
 #include <linux/version.h>
@@ -30,6 +29,7 @@
 #include "common/talpa.h"
 #include "common/list.h"
 #include "platform/alloc.h"
+#include "platform/uaccess.h"
 #include "configurator/pod_configuration_element.h"
 
 #include "securityfs_configurator.h"
