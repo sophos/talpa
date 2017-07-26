@@ -146,7 +146,7 @@ static asmlinkage long talpa_mount(char* dev_name, char* dir_name, char* type, u
  * System call table helpers
  */
 #ifdef TALPA_HIDDEN_SYSCALLS
-static void **sys_call_table;
+static void **talpa_sys_call_table;
 
 /* Code below, which finds the hidden system call table,
    is borrowed from the ARLA project and modified.
@@ -316,6 +316,7 @@ static void **talpa_find_syscall_table(void **ptr, const unsigned int unique_sys
 
 #else
 extern void *sys_call_table[];
+#define talpa_sys_call_table sys_call_table
 #endif
 
 #if defined(TALPA_HAS_RODATA) && defined(TALPA_RODATA_MAP_WRITABLE)
@@ -544,49 +545,49 @@ static int find_syscall_table(void)
 
     if ( syscall_table )
     {
-        sys_call_table = (void **)syscall_table;
+        talpa_sys_call_table = (void **)syscall_table;
 
-        if ( verify(sys_call_table, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1) )
+        if ( verify(talpa_sys_call_table, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1) )
         {
-            dbg("userspace specified sys_call_table at 0x%p", sys_call_table);
+            dbg("userspace specified talpa_sys_call_table at 0x%p", talpa_sys_call_table);
         }
         else
         {
-            dbg("not a sys_call_table at 0x%p", sys_call_table);
+            dbg("not a talpa_sys_call_table at 0x%p", talpa_sys_call_table);
             /* Look around specified address before giving up. */
-            sys_call_table = look_around(sys_call_table, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
-            if ( !sys_call_table )
+            talpa_sys_call_table = look_around(talpa_sys_call_table, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
+            if ( !talpa_sys_call_table )
             {
-                dbg("no sys_call_table around 0x%lx", syscall_table);
+                dbg("no talpa_sys_call_table around 0x%lx", syscall_table);
             }
-            syscall_table = (unsigned long)sys_call_table;
+            syscall_table = (unsigned long)talpa_sys_call_table;
         }
     }
 
     /* If valid address wasn't supplied to us we'll try to autodetect it */
     if ( !syscall_table )
     {
-        sys_call_table = talpa_find_syscall_table(get_start_addr(), unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
-        if ( !sys_call_table )
+        talpa_sys_call_table = talpa_find_syscall_table(get_start_addr(), unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
+        if ( !talpa_sys_call_table )
         {
-            dbg("no sys_call_table found");
+            dbg("no talpa_sys_call_table found");
             /* Look around specified address before giving up. */
-            sys_call_table = find_around(get_start_addr(), unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
-            if ( !sys_call_table )
+            talpa_sys_call_table = find_around(get_start_addr(), unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
+            if ( !talpa_sys_call_table )
             {
-                dbg("no sys_call_table found");
+                dbg("no talpa_sys_call_table found");
             }
         }
-        syscall_table = (unsigned long)sys_call_table;
+        syscall_table = (unsigned long)talpa_sys_call_table;
     }
 
-    if ( sys_call_table == NULL )
+    if ( talpa_sys_call_table == NULL )
     {
         err("Cannot find syscall table!");
         return -ESRCH;
     }
 
-    dbg("Syscall table at 0x%p", sys_call_table);
+    dbg("Syscall table at 0x%p", talpa_sys_call_table);
     return 0;
 }
 #else
@@ -599,7 +600,7 @@ static int find_syscall_table(void)
 static void save_originals(void)
 {
 #ifdef CONFIG_X86
-    orig_mount = sys_call_table[__NR_mount];
+    orig_mount = talpa_sys_call_table[__NR_mount];
 #else
   #error "Architecture currently not supported!"
 #endif
@@ -609,12 +610,12 @@ static void save_originals(void)
 
 static void patch_table(void)
 {
-    patch_syscall(sys_call_table, __NR_mount, talpa_mount);
+    patch_syscall(talpa_sys_call_table, __NR_mount, talpa_mount);
 }
 
 static unsigned int check_table(void)
 {
-    if ( sys_call_table[__NR_mount] != talpa_mount )
+    if ( talpa_sys_call_table[__NR_mount] != talpa_mount )
     {
         warn("mount() is patched by someone else!");
         return 1;
@@ -626,7 +627,7 @@ static unsigned int check_table(void)
 static void restore_table(void)
 {
 #if defined CONFIG_X86
-    patch_syscall(sys_call_table, __NR_mount, orig_mount);
+    patch_syscall(talpa_sys_call_table, __NR_mount, orig_mount);
 #endif
 }
 
@@ -644,7 +645,7 @@ static int __init talpa_syscallhook_init(void)
     dbg("lower bound 0x%p", lower_bound);
 
     /* Relocate addresses (if needed) embedded at compile time. */
-    syscall_table = (unsigned long)talpa_get_symbol("sys_call_table", (void *)syscall_table);
+    syscall_table = (unsigned long)talpa_get_symbol("talpa_sys_call_table", (void *)syscall_table);
 #endif
 
 #ifdef TALPA_NEED_MANUAL_RODATA
