@@ -708,13 +708,13 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
         {
             if (rootUtsNamespace)
             {
-                /* we're in a namespace/container, append '(namespace)' to the path */
+                /* we're in a mount namespace, append '(namespace)' to the path */
                 strcpy(((char *)file) + pos, " (namespace)");
                 pos += 12;
             }
             else
             {
-                /* we're in a namespace/container, append '(namespace)' to the path */
+                /* we're in a container, append '(container hostname=...)' to the path */
                 strcpy(((char *)file) + pos, " (container");
                 pos += 11;
 

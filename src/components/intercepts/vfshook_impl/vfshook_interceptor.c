@@ -2165,7 +2165,7 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
     const char*                 fsname = (const char *)mnt->mnt_sb->s_type->name;
     bool                        good_fs = false;
     bool                        hook_dops = false;
-    int                         i;
+    int                         propagationCount;
 
 
     /* We don't want to patch some filesystems, and for some we want
@@ -2295,8 +2295,8 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
     ret = prepareFilesystem(mnt, reg, smbfs, patch);
     if ( !ret )
     {
-        i = countPropagationPoints(mnt);
-        dbg("propagation points for mount on %s = %d", fsname, i);
+        propagationCount = countPropagationPoints(mnt);
+        dbg("propagation points for mount on %s = %d", fsname, propagationCount);
 
         /* Only add it to the list if this is a new patch (not a new
            instance of the existing one) */
@@ -2311,10 +2311,7 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
             if ( !ret )
             {
                 dbg("refcnt for %s = %d", fsname, atomic_read(&patch->refcnt));
-                for (;i>0;i--)
-                {
-                    atomic_inc(&patch->usecnt);
-                }
+                atomic_add(propagationCount, &patch->usecnt);
                 talpa_simple_unlock(&patch->lock);
             }
             else
@@ -2333,10 +2330,7 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
             shouldinc = repatchFilesystem(reg, smbfs, patch);
             if ( shouldinc && !(fromMount && (flags & MS_REMOUNT)) )
             {
-                for (;i>0;i--)
-                {
-                    atomic_inc(&patch->usecnt);
-                }
+                atomic_add(propagationCount, &patch->usecnt);
             }
             else
             {
