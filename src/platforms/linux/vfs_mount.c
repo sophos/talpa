@@ -62,7 +62,7 @@ struct talpa_mnt_namespace {
          u64 event;
  };
 
- #define PROC_INUM_FROM_MNT_NAMESPACE(x) (x)->ns.inum
+ #define PROC_INUM_FROM_MNT_NAMESPACE(x) ((x) ? (x)->ns.inum : 0)
 
  #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0)
 struct talpa_mnt_namespace {
@@ -75,7 +75,7 @@ struct talpa_mnt_namespace {
          wait_queue_head_t poll;
          talpa_mnt_namespace_event_t event; /* Changed to u64 in 3.15 */
  };
- #define PROC_INUM_FROM_MNT_NAMESPACE(x) (x)->proc_inum
+ #define PROC_INUM_FROM_MNT_NAMESPACE(x) ((x) ? (x)->proc_inum : 0)
  #else
 struct talpa_mnt_namespace {
     atomic_t        count;
