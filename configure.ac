@@ -795,6 +795,9 @@ if test $((kern_version_code)) -ge 196608 ; then
     kernccflags="${kernccflags} -Os"
 fi
 
+## 2.6.20+
+AM_CONDITIONAL(TESTNAMESPACES, test $((kern_version_code)) -ge 132628)
+
 ## 2.6.0+
 AM_CONDITIONAL(KBUILD26, test $((kern_version_code)) -ge 132608)
 # Set these to true for time being

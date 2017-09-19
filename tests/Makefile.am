@@ -126,7 +126,14 @@ check_PROGRAMS +=   chkstdinterceptor \
                     tlp-8-002 \
                     tlp-8-003 \
                     tlp-8-004 \
-                    chk_chroot
+                    chk_chroot \
+                    chk_bind1
+
+if TESTNAMESPACES
+check_PROGRAMS +=   chk_namespace \
+                    chk_container
+endif
+
 
 PTHREAD_FLAG = -pthread
 
@@ -299,6 +306,15 @@ tlp_8_004_CFLAGS = $(USERSPACE_C_FLAGS)
 chk_chroot_SOURCES = chk_chroot.c ../clients/vc-lib.c ../clients/talpa.c
 chk_chroot_CFLAGS = $(USERSPACE_C_FLAGS)
 
+chk_namespace_SOURCES = chk_namespace.c ../clients/vc-lib.c ../clients/talpa.c
+chk_namespace_CFLAGS = $(USERSPACE_C_FLAGS)
+
+chk_container_SOURCES = chk_container.c ../clients/vc-lib.c ../clients/talpa.c
+chk_container_CFLAGS = $(USERSPACE_C_FLAGS)
+
+chk_bind1_SOURCES = chk_bind1.c ../clients/vc-lib.c ../clients/talpa.c
+chk_bind1_CFLAGS = $(USERSPACE_C_FLAGS)
+
 if LOADTEST
 
 check_PROGRAMS +=  reiserfsmnt
@@ -319,6 +335,7 @@ TESTS                   = tlp-init.sh \
                           tlp_dualfsdisable.sh \
                           tlp_dualfsenable.sh \
                           chklinuxvfs.sh
+
 if BINARYSYSCTL
 TESTS +=                  sysctldisable.sh \
                           sysctlenable.sh \
@@ -459,7 +476,18 @@ TESTS +=                  chkext2fops.sh \
                           chkminix1.sh \
                           chkminix2.sh \
                           chk_lsattr.sh \
-                          chk_chroot.sh \
+                          chk_chroot.sh
+
+if TESTNAMESPACES
+TESTS +=                  chk_namespace.sh \
+                          chk_container.sh
+endif
+
+TESTS +=                  chk_bind.sh \
+                          chk_bind1.sh \
+                          chk_bind2.sh \
+                          chk_bind3.sh \
+                          chk_move.sh \
                           tlp-cleanup.sh
 
 check_SCRIPTS =           $(TESTS) \
