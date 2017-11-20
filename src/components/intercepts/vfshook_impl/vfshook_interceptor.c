@@ -3172,6 +3172,7 @@ VFSHookInterceptor* newVFSHookInterceptor(void)
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "binfmt_misc", false);
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "mqueue", true);
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "cgroup", false);
+    appendObject(&GL_object, &GL_object.mSkipFilesystems, "cgroup2", false);
 
     /* Filesystems not to be scanned immediately after mount */
 #ifdef TALPA_HAS_SMBFS
