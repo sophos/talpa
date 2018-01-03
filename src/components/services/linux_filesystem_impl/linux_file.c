@@ -536,7 +536,9 @@ static loff_t seek(void* self, loff_t offset, int whence)
 static ssize_t read(void* self, void* data, size_t count)
 {
     struct file* file = this->mFile;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
     mm_segment_t oldfs;
+#endif
     ssize_t retval;
 
 
@@ -545,7 +547,9 @@ static ssize_t read(void* self, void* data, size_t count)
         return -EBADF;
     }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
+    retval = kernel_read(file, data, count, &file->f_pos);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
     oldfs = get_fs(); set_fs(KERNEL_DS);
     retval = vfs_read(file, data, count, &file->f_pos);
     set_fs(oldfs);
@@ -566,7 +570,9 @@ static ssize_t read(void* self, void* data, size_t count)
 static ssize_t write(void* self, const void* data, size_t count)
 {
     struct file* file = this->mFile;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
     mm_segment_t oldfs;
+#endif
     ssize_t retval;
 
 
@@ -575,7 +581,9 @@ static ssize_t write(void* self, const void* data, size_t count)
         return -EBADF;
     }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
+    retval = kernel_write(file, data, count, &file->f_pos);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
     oldfs = get_fs(); set_fs(KERNEL_DS);
     retval = vfs_write(file, data, count, &file->f_pos);
     set_fs(oldfs);
