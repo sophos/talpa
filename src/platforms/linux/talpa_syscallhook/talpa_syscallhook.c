@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright(C) 2004-2016 Sophos Limited, Oxford, England.
+ * Copyright(C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -32,6 +32,9 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
   #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,3)
     #include <linux/syscalls.h>
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+    # include <linux/sched/task.h>
+    #endif
   #endif
   #include <linux/ptrace.h>
   #include <linux/moduleparam.h>
@@ -45,7 +48,10 @@
 #include <linux/uaccess.h>
 #endif
 
-#if defined(CONFIG_DEBUG_SET_MODULE_RONX) || defined(CONFIG_DEBUG_RODATA)
+#if defined(CONFIG_DEBUG_SET_MODULE_RONX) \
+    || defined(CONFIG_DEBUG_RODATA) \
+    || defined(CONFIG_STRICT_KERNEL_RWX) \
+    || defined(CONFIG_STRICT_MODULE_RWX)
 #define TALPA_SHADOW_MAP
 #endif
 
@@ -733,10 +739,11 @@ static asmlinkage long talpa_umount2(char* name, int flags)
  * System call table helpers
  */
 #ifdef TALPA_HIDDEN_SYSCALLS
-static void **sys_call_table;
+
+static void ** talpa_sys_call_table;
 
   #ifdef CONFIG_IA32_EMULATION
-static void **ia32_sys_call_table;
+static void ** talpa_ia32_sys_call_table;
   #endif
 
 /* Code below, which finds the hidden system call table,
@@ -964,9 +971,12 @@ static void **talpa_find_syscall_table(void **ptr, const unsigned int unique_sys
     return table;
 }
 
-#else
+#else /* TALPA_HIDDEN_SYSCALLS */
+
 extern void *sys_call_table[];
-#endif
+#define talpa_sys_call_table sys_call_table
+
+#endif /* TALPA_HIDDEN_SYSCALLS */
 
 #ifdef TALPA_SHADOW_MAP
 
@@ -1214,26 +1224,26 @@ static int find_syscall_table(void)
 
     if ( syscall32_table )
     {
-        ia32_sys_call_table = (void **)syscall32_table;
+        talpa_ia32_sys_call_table = (void **)syscall32_table;
 
-        if ( verify(ia32_sys_call_table, unique_syscalls_ia32, num_unique_syscalls_ia32, zapped_syscalls_ia32, num_zapped_syscalls_ia32, 0) )
+        if ( verify(talpa_ia32_sys_call_table, unique_syscalls_ia32, num_unique_syscalls_ia32, zapped_syscalls_ia32, num_zapped_syscalls_ia32, 0) )
         {
-            dbg("userspace specified ia32_sys_call_table at 0x%p", ia32_sys_call_table);
+            dbg("userspace specified talpa_ia32_sys_call_table at 0x%p", talpa_ia32_sys_call_table);
         }
         else if ( force )
         {
-            dbg("userspace forced ia32_sys_call_table at 0x%p", ia32_sys_call_table);
+            dbg("userspace forced talpa_ia32_sys_call_table at 0x%p", talpa_ia32_sys_call_table);
         }
         else
         {
-            dbg("not an ia32_sys_call_table at 0x%p", ia32_sys_call_table);
+            dbg("not an talpa_ia32_sys_call_table at 0x%p", talpa_ia32_sys_call_table);
             /* Look around specified address before giving up. */
-            ia32_sys_call_table = look_around(ia32_sys_call_table, unique_syscalls_ia32, num_unique_syscalls_ia32, zapped_syscalls_ia32, num_zapped_syscalls_ia32, 0);
-            if ( !ia32_sys_call_table )
+            talpa_ia32_sys_call_table = look_around(talpa_ia32_sys_call_table, unique_syscalls_ia32, num_unique_syscalls_ia32, zapped_syscalls_ia32, num_zapped_syscalls_ia32, 0);
+            if ( !talpa_ia32_sys_call_table )
             {
-                dbg("no ia32_sys_call_table around 0x%lx", syscall32_table);
+                dbg("no talpa_ia32_sys_call_table around 0x%lx", syscall32_table);
             }
-            syscall32_table = (unsigned long)ia32_sys_call_table;
+            syscall32_table = (unsigned long)talpa_ia32_sys_call_table;
         }
     }
 
@@ -1252,27 +1262,27 @@ static int find_syscall_table(void)
             return -EFAULT;
         }
 
-        ia32_sys_call_table = talpa_find_syscall_table(startaddr, unique_syscalls_ia32, num_unique_syscalls_ia32, zapped_syscalls_ia32, num_zapped_syscalls_ia32, 0);
-        if ( !ia32_sys_call_table )
+        talpa_ia32_sys_call_table = talpa_find_syscall_table(startaddr, unique_syscalls_ia32, num_unique_syscalls_ia32, zapped_syscalls_ia32, num_zapped_syscalls_ia32, 0);
+        if ( !talpa_ia32_sys_call_table )
         {
-            dbg("no ia32_sys_call_table found");
+            dbg("no talpa_ia32_sys_call_table found");
             /* Look around specified address before giving up. */
-            ia32_sys_call_table = find_around(startaddr, unique_syscalls_ia32, num_unique_syscalls_ia32, zapped_syscalls_ia32, num_zapped_syscalls_ia32, 0);
-            if ( !ia32_sys_call_table )
+            talpa_ia32_sys_call_table = find_around(startaddr, unique_syscalls_ia32, num_unique_syscalls_ia32, zapped_syscalls_ia32, num_zapped_syscalls_ia32, 0);
+            if ( !talpa_ia32_sys_call_table )
             {
-                dbg("no ia32_sys_call_table found");
+                dbg("no talpa_ia32_sys_call_table found");
             }
         }
-        syscall32_table = (unsigned long)ia32_sys_call_table;
+        syscall32_table = (unsigned long)talpa_ia32_sys_call_table;
     }
 
-    if ( ia32_sys_call_table == NULL )
+    if ( talpa_ia32_sys_call_table == NULL )
     {
         err("Cannot find IA32 emulation syscall table!");
         return -ESRCH;
     }
 
-    dbg("IA32 syscall table at 0x%p", ia32_sys_call_table);
+    dbg("IA32 syscall table at 0x%p", talpa_ia32_sys_call_table);
     #endif
 
   #elif CONFIG_X86
@@ -1284,26 +1294,26 @@ static int find_syscall_table(void)
 
     if ( syscall_table )
     {
-        sys_call_table = (void **)syscall_table;
+        talpa_sys_call_table = (void **)syscall_table;
 
-        if ( verify(sys_call_table, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1) )
+        if ( verify(talpa_sys_call_table, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1) )
         {
-            dbg("userspace specified sys_call_table at 0x%p", sys_call_table);
+            dbg("userspace specified talpa_sys_call_table at 0x%p", talpa_sys_call_table);
         }
         else if ( force )
         {
-            dbg("userspace forced sys_call_table at 0x%p", sys_call_table);
+            dbg("userspace forced talpa_sys_call_table at 0x%p", talpa_sys_call_table);
         }
         else
         {
-            dbg("not a sys_call_table at 0x%p", sys_call_table);
+            dbg("not a talpa_sys_call_table at 0x%p", talpa_sys_call_table);
             /* Look around specified address before giving up. */
-            sys_call_table = look_around(sys_call_table, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
-            if ( !sys_call_table )
+            talpa_sys_call_table = look_around(talpa_sys_call_table, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
+            if ( !talpa_sys_call_table )
             {
-                dbg("no sys_call_table around 0x%lx", syscall_table);
+                dbg("no talpa_sys_call_table around 0x%lx", syscall_table);
             }
-            syscall_table = (unsigned long)sys_call_table;
+            syscall_table = (unsigned long)talpa_sys_call_table;
         }
     }
 
@@ -1323,27 +1333,27 @@ static int find_syscall_table(void)
             return -EFAULT;
         }
 
-        sys_call_table = talpa_find_syscall_table(startaddr, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
-        if ( !sys_call_table )
+        talpa_sys_call_table = talpa_find_syscall_table(startaddr, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
+        if ( !talpa_sys_call_table )
         {
-            dbg("no sys_call_table found");
+            dbg("no talpa_sys_call_table found");
             /* Look around specified address before giving up. */
-            sys_call_table = find_around(startaddr, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
-            if ( !sys_call_table )
+            talpa_sys_call_table = find_around(startaddr, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, 1);
+            if ( !talpa_sys_call_table )
             {
-                dbg("no sys_call_table found");
+                dbg("no talpa_sys_call_table found");
             }
         }
-        syscall_table = (unsigned long)sys_call_table;
+        syscall_table = (unsigned long)talpa_sys_call_table;
     }
 
-    if ( sys_call_table == NULL )
+    if ( talpa_sys_call_table == NULL )
     {
         err("Cannot find syscall table!");
         return -ESRCH;
     }
 
-    dbg("Syscall table at 0x%p", sys_call_table);
+    dbg("Syscall table at 0x%p", talpa_sys_call_table);
     return 0;
 }
 #else
@@ -1356,28 +1366,28 @@ static int find_syscall_table(void)
 static void save_originals(void)
 {
 #ifdef CONFIG_X86
-    orig_open = sys_call_table[__NR_open];
-    orig_close = sys_call_table[__NR_close];
+    orig_open = talpa_sys_call_table[__NR_open];
+    orig_close = talpa_sys_call_table[__NR_close];
   #ifdef TALPA_EXECVE_SUPPORT
-    orig_execve = sys_call_table[__NR_execve];
+    orig_execve = talpa_sys_call_table[__NR_execve];
   #endif
-    orig_uselib = sys_call_table[__NR_uselib];
-    orig_mount = sys_call_table[__NR_mount];
+    orig_uselib = talpa_sys_call_table[__NR_uselib];
+    orig_mount = talpa_sys_call_table[__NR_mount];
   #if defined CONFIG_X86_64
-    orig_umount2 = sys_call_table[__NR_umount2];
+    orig_umount2 = talpa_sys_call_table[__NR_umount2];
     #ifdef CONFIG_IA32_EMULATION
-    orig_open_32 = ia32_sys_call_table[__NR_open_ia32];
-    orig_close_32 = ia32_sys_call_table[__NR_close_ia32];
+    orig_open_32 = talpa_ia32_sys_call_table[__NR_open_ia32];
+    orig_close_32 = talpa_ia32_sys_call_table[__NR_close_ia32];
       #ifdef CONFIG_IA32_AOUT
-    orig_uselib_32 = ia32_sys_call_table[__NR_uselib_ia32];
+    orig_uselib_32 = talpa_ia32_sys_call_table[__NR_uselib_ia32];
       #endif
-    orig_mount_32 = ia32_sys_call_table[__NR_mount_ia32];
-    orig_umount_32 = ia32_sys_call_table[__NR_umount_ia32];
-    orig_umount2_32 = ia32_sys_call_table[__NR_umount2_ia32];
+    orig_mount_32 = talpa_ia32_sys_call_table[__NR_mount_ia32];
+    orig_umount_32 = talpa_ia32_sys_call_table[__NR_umount_ia32];
+    orig_umount2_32 = talpa_ia32_sys_call_table[__NR_umount2_ia32];
     #endif
   #else
-    orig_umount = sys_call_table[__NR_umount];
-    orig_umount2 = sys_call_table[__NR_umount2];
+    orig_umount = talpa_sys_call_table[__NR_umount];
+    orig_umount2 = talpa_sys_call_table[__NR_umount2];
   #endif
 #else
   #error "Architecture currently not supported!"
@@ -1390,33 +1400,33 @@ static void patch_table(void)
 {
     if ( strchr(hook_mask, 'o') )
     {
-        patch_syscall(sys_call_table, __NR_open, talpa_open);
+        patch_syscall(talpa_sys_call_table, __NR_open, talpa_open);
 #ifdef CONFIG_IA32_EMULATION
-        patch_syscall(ia32_sys_call_table, __NR_open_ia32, talpa_open);
+        patch_syscall(talpa_ia32_sys_call_table, __NR_open_ia32, talpa_open);
 #endif
     }
 
     if ( strchr(hook_mask, 'c') )
     {
-        patch_syscall(sys_call_table, __NR_close, talpa_close);
+        patch_syscall(talpa_sys_call_table, __NR_close, talpa_close);
 #ifdef CONFIG_IA32_EMULATION
-        patch_syscall(ia32_sys_call_table, __NR_close_ia32, talpa_close);
+        patch_syscall(talpa_ia32_sys_call_table, __NR_close_ia32, talpa_close);
 #endif
     }
 
     if ( strchr(hook_mask, 'l') )
     {
-        patch_syscall(sys_call_table, __NR_uselib, talpa_uselib);
+        patch_syscall(talpa_sys_call_table, __NR_uselib, talpa_uselib);
 #if defined CONFIG_IA32_EMULATION && defined CONFIG_IA32_AOUT
-        patch_syscall(ia32_sys_call_table, __NR_uselib_ia32, talpa_uselib);
+        patch_syscall(talpa_ia32_sys_call_table, __NR_uselib_ia32, talpa_uselib);
 #endif
     }
 
     if ( strchr(hook_mask, 'm') )
     {
-        patch_syscall(sys_call_table, __NR_mount, talpa_mount);
+        patch_syscall(talpa_sys_call_table, __NR_mount, talpa_mount);
 #ifdef CONFIG_IA32_EMULATION
-        patch_syscall(ia32_sys_call_table, __NR_mount_ia32, talpa_mount);
+        patch_syscall(talpa_ia32_sys_call_table, __NR_mount_ia32, talpa_mount);
 #endif
     }
 
@@ -1424,22 +1434,22 @@ static void patch_table(void)
     {
 #if defined CONFIG_X86
  #if defined CONFIG_X86_64
-        patch_syscall(sys_call_table, __NR_umount2, talpa_umount2);
+        patch_syscall(talpa_sys_call_table, __NR_umount2, talpa_umount2);
  #else
-        patch_syscall(sys_call_table, __NR_umount, talpa_umount);
-        patch_syscall(sys_call_table, __NR_umount2, talpa_umount2);
+        patch_syscall(talpa_sys_call_table, __NR_umount, talpa_umount);
+        patch_syscall(talpa_sys_call_table, __NR_umount2, talpa_umount2);
  #endif
 #endif
 #ifdef CONFIG_IA32_EMULATION
-        patch_syscall(ia32_sys_call_table, __NR_umount_ia32, talpa_umount);
-        patch_syscall(ia32_sys_call_table, __NR_umount2_ia32, talpa_umount2);
+        patch_syscall(talpa_ia32_sys_call_table, __NR_umount_ia32, talpa_umount);
+        patch_syscall(talpa_ia32_sys_call_table, __NR_umount2_ia32, talpa_umount2);
 #endif
     }
 
 #ifdef TALPA_EXECVE_SUPPORT
     if ( strchr(hook_mask, 'e') )
     {
-        patch_syscall(sys_call_table, __NR_execve, talpa_execve);
+        patch_syscall(talpa_sys_call_table, __NR_execve, talpa_execve);
     }
 #endif
 }
@@ -1451,15 +1461,15 @@ static unsigned int check_table(void)
 
     if ( strchr(hook_mask, 'o') )
     {
-        if ( sys_call_table[__NR_open] != talpa_open &&
-             sys_call_table[__NR_open] != orig_open)
+        if ( talpa_sys_call_table[__NR_open] != talpa_open &&
+             talpa_sys_call_table[__NR_open] != orig_open)
         {
             warn("open() is patched by someone else!");
             rc = 1;
         }
 #ifdef CONFIG_IA32_EMULATION
-        if ( ia32_sys_call_table[__NR_open_ia32] != talpa_open &&
-             ia32_sys_call_table[__NR_open_ia32] != orig_open_32)
+        if ( talpa_ia32_sys_call_table[__NR_open_ia32] != talpa_open &&
+             talpa_ia32_sys_call_table[__NR_open_ia32] != orig_open_32)
         {
             warn("ia32_open() is patches by someone else!");
             rc = 1;
@@ -1469,15 +1479,15 @@ static unsigned int check_table(void)
 
     if ( strchr(hook_mask, 'c') )
     {
-        if ( sys_call_table[__NR_close] != talpa_close &&
-             sys_call_table[__NR_close] != orig_close)
+        if ( talpa_sys_call_table[__NR_close] != talpa_close &&
+             talpa_sys_call_table[__NR_close] != orig_close)
         {
             warn("close() is patched by someone else!");
             rc = 1;
         }
 #ifdef CONFIG_IA32_EMULATION
-        if ( ia32_sys_call_table[__NR_close_ia32] != talpa_close &&
-             ia32_sys_call_table[__NR_close_ia32] != orig_close_32)
+        if ( talpa_ia32_sys_call_table[__NR_close_ia32] != talpa_close &&
+             talpa_ia32_sys_call_table[__NR_close_ia32] != orig_close_32)
         {
             warn("ia32_close() is patched by someone else!");
             rc = 1;
@@ -1487,15 +1497,15 @@ static unsigned int check_table(void)
 
     if ( strchr(hook_mask, 'l') )
     {
-        if ( sys_call_table[__NR_uselib] != talpa_uselib &&
-             sys_call_table[__NR_uselib] != orig_uselib)
+        if ( talpa_sys_call_table[__NR_uselib] != talpa_uselib &&
+             talpa_sys_call_table[__NR_uselib] != orig_uselib)
         {
             warn("uselib() is patched by someone else!");
             rc = 1;
         }
 #if defined CONFIG_IA32_EMULATION && defined CONFIG_IA32_AOUT
-        if ( ia32_sys_call_table[__NR_uselib_ia32] != talpa_uselib &&
-             ia32_sys_call_table[__NR_uselib_ia32] != orig_uselib_32)
+        if ( talpa_ia32_sys_call_table[__NR_uselib_ia32] != talpa_uselib &&
+             talpa_ia32_sys_call_table[__NR_uselib_ia32] != orig_uselib_32)
         {
             warn("ia32_uselib() is patched by someone else!");
             rc = 1;
@@ -1505,15 +1515,15 @@ static unsigned int check_table(void)
 
     if ( strchr(hook_mask, 'm') )
     {
-        if ( sys_call_table[__NR_mount] != talpa_mount &&
-             sys_call_table[__NR_mount] != orig_mount )
+        if ( talpa_sys_call_table[__NR_mount] != talpa_mount &&
+             talpa_sys_call_table[__NR_mount] != orig_mount )
         {
             warn("mount() is patched by someone else!");
             rc = 1;
         }
 #ifdef CONFIG_IA32_EMULATION
-        if ( ia32_sys_call_table[__NR_mount_ia32] != talpa_mount &&
-             ia32_sys_call_table[__NR_mount_ia32] != orig_mount_32)
+        if ( talpa_ia32_sys_call_table[__NR_mount_ia32] != talpa_mount &&
+             talpa_ia32_sys_call_table[__NR_mount_ia32] != orig_mount_32)
         {
             warn("ia32_mount() is patched by someone else!");
             rc = 1;
@@ -1525,21 +1535,21 @@ static unsigned int check_table(void)
     {
 #if defined CONFIG_X86
  #if defined CONFIG_X86_64
-        if ( sys_call_table[__NR_umount2] != talpa_umount2 &&
-             sys_call_table[__NR_umount2] != orig_umount2)
+        if ( talpa_sys_call_table[__NR_umount2] != talpa_umount2 &&
+             talpa_sys_call_table[__NR_umount2] != orig_umount2)
         {
             warn("umount2() is patched by someone else!");
             rc = 1;
         }
  #else
-        if ( sys_call_table[__NR_umount] != talpa_umount &&
-             sys_call_table[__NR_umount] != orig_umount)
+        if ( talpa_sys_call_table[__NR_umount] != talpa_umount &&
+             talpa_sys_call_table[__NR_umount] != orig_umount)
         {
             warn("umount() is patched by someone else!");
             rc = 1;
         }
-        if ( sys_call_table[__NR_umount2] != talpa_umount2 &&
-             sys_call_table[__NR_umount2] != orig_umount2)
+        if ( talpa_sys_call_table[__NR_umount2] != talpa_umount2 &&
+             talpa_sys_call_table[__NR_umount2] != orig_umount2)
         {
             warn("umount2() is patched by someone else!");
             rc = 1;
@@ -1547,14 +1557,14 @@ static unsigned int check_table(void)
  #endif
 #endif
 #ifdef CONFIG_IA32_EMULATION
-        if ( ia32_sys_call_table[__NR_umount_ia32] != talpa_umount &&
-             ia32_sys_call_table[__NR_umount_ia32] != orig_umount_32)
+        if ( talpa_ia32_sys_call_table[__NR_umount_ia32] != talpa_umount &&
+             talpa_ia32_sys_call_table[__NR_umount_ia32] != orig_umount_32)
         {
             warn("ia32_umount() is patched by someone else!");
             rc = 1;
         }
-        if ( ia32_sys_call_table[__NR_umount2_ia32] != talpa_umount2 &&
-             ia32_sys_call_table[__NR_umount2_ia32] != orig_umount2_32)
+        if ( talpa_ia32_sys_call_table[__NR_umount2_ia32] != talpa_umount2 &&
+             talpa_ia32_sys_call_table[__NR_umount2_ia32] != orig_umount2_32)
         {
             warn("ia32_umount2() is patched by someone else!");
             rc = 1;
@@ -1565,8 +1575,8 @@ static unsigned int check_table(void)
 #ifdef TALPA_EXECVE_SUPPORT
     if ( strchr(hook_mask, 'e') )
     {
-        if ( sys_call_table[__NR_execve] != talpa_execve &&
-             sys_call_table[__NR_execve] != orig_execve)
+        if ( talpa_sys_call_table[__NR_execve] != talpa_execve &&
+             talpa_sys_call_table[__NR_execve] != orig_execve)
         {
             warn("execve() is patched by someone else!");
             rc = 1;
@@ -1580,28 +1590,28 @@ static unsigned int check_table(void)
 static void restore_table(void)
 {
 #if defined CONFIG_X86
-    patch_syscall(sys_call_table, __NR_open, orig_open);
-    patch_syscall(sys_call_table, __NR_close, orig_close);
+    patch_syscall(talpa_sys_call_table, __NR_open, orig_open);
+    patch_syscall(talpa_sys_call_table, __NR_close, orig_close);
   #ifdef TALPA_EXECVE_SUPPORT
-    patch_syscall(sys_call_table, __NR_execve, orig_execve);
+    patch_syscall(talpa_sys_call_table, __NR_execve, orig_execve);
   #endif
-    patch_syscall(sys_call_table, __NR_uselib, orig_uselib);
-    patch_syscall(sys_call_table, __NR_mount, orig_mount);
+    patch_syscall(talpa_sys_call_table, __NR_uselib, orig_uselib);
+    patch_syscall(talpa_sys_call_table, __NR_mount, orig_mount);
   #if defined CONFIG_X86_64
-    patch_syscall(sys_call_table, __NR_umount2, orig_umount2);
+    patch_syscall(talpa_sys_call_table, __NR_umount2, orig_umount2);
     #ifdef CONFIG_IA32_EMULATION
-    patch_syscall(ia32_sys_call_table, __NR_open_ia32, orig_open_32);
-    patch_syscall(ia32_sys_call_table, __NR_close_ia32, orig_close_32);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_open_ia32, orig_open_32);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_close_ia32, orig_close_32);
       #ifdef CONFIG_IA32_AOUT
-    patch_syscall(ia32_sys_call_table, __NR_uselib_ia32, orig_uselib_32);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_uselib_ia32, orig_uselib_32);
       #endif
-    patch_syscall(ia32_sys_call_table, __NR_mount_ia32, orig_mount_32);
-    patch_syscall(ia32_sys_call_table, __NR_umount_ia32, orig_umount_32);
-    patch_syscall(ia32_sys_call_table, __NR_umount2_ia32, orig_umount2_32);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_mount_ia32, orig_mount_32);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_umount_ia32, orig_umount_32);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_umount2_ia32, orig_umount2_32);
     #endif
   #else
-    patch_syscall(sys_call_table, __NR_umount, orig_umount);
-    patch_syscall(sys_call_table, __NR_umount2, orig_umount2);
+    patch_syscall(talpa_sys_call_table, __NR_umount, orig_umount);
+    patch_syscall(talpa_sys_call_table, __NR_umount2, orig_umount2);
   #endif
 #endif
 }
@@ -1620,9 +1630,9 @@ static int __init talpa_syscallhook_init(void)
     dbg("lower bound 0x%p", lower_bound);
 
     /* Relocate addresses (if needed) embedded at compile time. */
-    syscall_table = (unsigned long)talpa_get_symbol("sys_call_table", (void *)syscall_table);
+    syscall_table = (unsigned long)talpa_get_symbol("talpa_sys_call_table", (void *)syscall_table);
   #ifdef CONFIG_IA32_EMULATION
-    syscall32_table = (unsigned long)talpa_get_symbol("ia32_sys_call_table", (void *)syscall32_table);
+    syscall32_table = (unsigned long)talpa_get_symbol("talpa_ia32_sys_call_table", (void *)syscall32_table);
   #endif
 #endif
 

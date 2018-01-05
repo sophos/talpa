@@ -3,7 +3,7 @@
 *
 * TALPA Filesystem Interceptor
 *
-* Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
+* Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
 *
 * This program is free software; you can redistribute it and/or modify it under the terms of the
 * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -26,17 +26,17 @@
 #include <linux/tty.h>
 #include <linux/fs_struct.h>
 
-#ifdef TALPA_HAS_PROBE_KERNEL_READ
-# include <linux/uaccess.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+# include <linux/sched/task.h>
+# include <linux/sched/signal.h>
 #endif
-
-#include <asm/uaccess.h>
 
 #include "common/talpa.h"
 #include "app_ctrl/iportability_app_ctrl.h"
 #include "platforms/linux/glue.h"
 #include "platforms/linux/locking.h"
 #include "platforms/linux/alloc.h"
+#include "platforms/linux/uaccess.h"
 
 #include "linux_threadinfo.h"
 
@@ -169,7 +169,7 @@ LinuxThreadInfo* newLinuxThreadInfo(void)
 #ifdef TALPA_HAS_PROBE_KERNEL_READ
                 if ( probe_kernel_read(object->mEnv, (void *)mm->env_start, object->mEnvSize) )
                 {
-                    err("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
+                    dbg("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
                     talpa_free(object->mEnv);
                     object->mEnv = NULL;
                     object->mEnvSize = 0;
@@ -182,11 +182,18 @@ LinuxThreadInfo* newLinuxThreadInfo(void)
                     up_write(&mm->mmap_sem); /* We don't actually need or want the lock while calling copy_from_user */
                     if ( copy_from_user(object->mEnv, (void *)mm->env_start, object->mEnvSize) )
                     {
-                        err("Can't copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
+                        err("Failed to copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
                         talpa_free(object->mEnv);
                         object->mEnv = NULL;
                         object->mEnvSize = 0;
                     }
+                }
+                else
+                {
+                    dbg("Can't take lock to copy environment for %s[%d/%d] (%lu)!", current->comm, current->tgid, current->pid, object->mEnvSize);
+                    talpa_free(object->mEnv);
+                    object->mEnv = NULL;
+                    object->mEnvSize = 0;
                 }
 #endif
             }

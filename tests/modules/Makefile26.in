@@ -39,6 +39,7 @@ EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../incl
 		@vfsmntlock@ \
 		@samefile@ \
 		@filldirbackport@ \
+		@mountrcubackport@ \
 		@probe_kernel_read@ \
 		@binarysysctl@ \
 		@securityfs@ \
@@ -48,7 +49,9 @@ EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../incl
 		@getname@ \
 		@vfsunlink@ \
 		@lookup_mnt_last@ \
-		@vfsmount_namespace@
+		@get_fs_root_and_pwd@ \
+		@vfsmount_namespace@ \
+        @compile_flags@
 
 obj-m :=    tlp-personality.o \
             tlp-fileinfo.o \

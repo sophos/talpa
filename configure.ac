@@ -3,7 +3,7 @@
 #
 # TALPA Filesystem Interceptor
 #
-# Copyright (C) 2004-2017 Sophos Plc
+# Copyright (C) 2004-2018 Sophos Plc
 #
 # This program is free software; you can redistribute it and/or modify it under the terms of the
 # GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -18,7 +18,7 @@
 
 AC_INIT(talpa, 0.9.95)
 AC_CONFIG_AUX_DIR(config)
-AC_COPYRIGHT(Copyright (c) 2004-2016 Sophos Plc)
+AC_COPYRIGHT(Copyright (c) 2004-2018 Sophos Plc)
 
 AM_INIT_AUTOMAKE([1.9 tar-ustar dist-zip dist-bzip2])
 AM_CONFIG_HEADER(config.h)
@@ -56,6 +56,8 @@ test -x "${XARGS}" || AC_MSG_ERROR([Please install xargs before configuring])
 # Options.
 #
 AC_PREFIX_DEFAULT(/opt/talpa)
+
+compile_flags=
 
 AC_ARG_ENABLE(talpa-build,
             [  --disable-talpa-build          configure building of talpa [[build]]],
@@ -213,6 +215,15 @@ AC_ARG_ENABLE(no-tasklist-lock,
                     auto_notasklistlock=no
                 ],
                 [   auto_notasklistlock=yes])
+
+AC_ARG_ENABLE(backported-mountrcu,
+                [  --enable-backported-mountrcu  Updated RHEL 7 can have an RCU in the mount struct [[autodetected]]],
+                [   if test "$enableval" = "yes"; then
+                        AC_SUBST(mountrcubackport,"-DTALPA_HAS_BACKPORTED_MOUNTRCU")
+                    fi
+                    auto_mountrcubackport=no
+                ],
+                [   auto_mountrcubackport=yes])
 
 AC_ARG_ENABLE(lsm,
                 [  --enable-lsm                   try to build LSM dependent modules [[autodetected]]],
@@ -576,6 +587,11 @@ function check_headers_layout
     if test -d "${kerneldir}/include/uapi"; then
         kernelhdrspath=`append_path "${kernelhdrspath}" "${kerneldir}/include/uapi"`
     fi
+
+    # Support for possibly broken Debian 7.11 3.16.0-0.bpo.4-amd64 backport.
+    if test -d "${sourcedir}/include/uapi"; then
+        kernelhdrspath=`append_path "${kernelhdrspath}" "${sourcedir}/include/uapi"`
+    fi
     AC_MSG_RESULT([$kernelhdrspath])
 }
 
@@ -736,6 +752,7 @@ AC_MSG_CHECKING([for kernel version code])
 ${CC} ${kernccflags} TALPA_INCLUDE_PATH($kernelhdrspath) -Itests/configure ${srcdir}/tests/configure/kernversion.c -o tests/configure/kernversion
 kern_version_code=`tests/configure/kernversion`
 AC_MSG_RESULT([${kern_version_code}])
+${RM} -f tests/configure/kernversion
 ## 2.6.0  == 132608
 ## 2.6.5  == 132613
 ## 2.6.15 == 132623     0x02060f
@@ -752,7 +769,7 @@ AC_MSG_RESULT([${kern_version_code}])
 ## 3.11.10== 199434     0x030b0a (Ubuntu 12.04.4)
 ## 3.12.0 == 199680
 ## 3.13.0 == 199936     0x030d00
-${RM} -f tests/configure/kernversion
+
 AC_MSG_CHECKING([for kernel version string])
 TALPA_LOCATE_HEADER($utsrelease_h, $kernelhdrspath, cckernrelease="-DSEPARATE_UTS_RELEASE", /bin/true, [quiet])
 ${CC} ${kernccflags} ${cckernrelease} ${ccgenerateduts} -Itests/configure TALPA_INCLUDE_PATH($kernelhdrspath) ${srcdir}/tests/configure/kernrelease.c -o tests/configure/kernrelease
@@ -760,10 +777,26 @@ kern_uts_release=`tests/configure/kernrelease`
 AC_MSG_RESULT([${kern_uts_release}])
 ${RM} -f tests/configure/kernrelease
 
+AC_MSG_CHECKING([for RHEL release code])
+${CC} ${kernccflags} TALPA_INCLUDE_PATH($kernelhdrspath) -Itests/configure ${srcdir}/tests/configure/rhel_release.c -o tests/configure/rhel_release  1>/dev/null 2>&1
+if test $? -eq 0; then
+    rhel_release=yes
+    rhel_release_code=`tests/configure/rhel_release`
+    AC_MSG_RESULT([${rhel_release_code}])
+else
+    rhel_release=no
+    AC_MSG_RESULT([not found])
+fi
+${RM} -f tests/configure/rhel_release
+## 7.4 == 1796  0x0704
+
 ## 3.0.0+
 if test $((kern_version_code)) -ge 196608 ; then
     kernccflags="${kernccflags} -Os"
 fi
+
+## 2.6.20+
+AM_CONDITIONAL(TESTNAMESPACES, test $((kern_version_code)) -ge 132628)
 
 ## 2.6.0+
 AM_CONDITIONAL(KBUILD26, test $((kern_version_code)) -ge 132608)
@@ -1250,6 +1283,22 @@ if test $((kern_version_code)) -ge 132608; then
         AC_SUBST(lookup_mnt_last, "")
     fi
 
+    if test $((kern_version_code)) -lt 199936; then
+        ## < 3.13.0
+        TALPA_LOCATE_HEADER(linux/fs_struct.h, $kernelhdrspath)
+        AC_MSG_CHECKING([for get_fs_root_and_pwd function])
+        if ${EGREP} "void get_fs_root_and_pwd\(" $TALPA_HEADER_LOCATION/linux/fs_struct.h >/dev/null 2>&1; then
+            AC_MSG_RESULT([system has get_fs_root_and_pwd])
+            AC_SUBST(get_fs_root_and_pwd, "-DTALPA_SYSTEM_GET_FS_ROOT_AND_PWD")
+        else
+            AC_MSG_RESULT([system does not have get_fs_root_and_pwd])
+            AC_SUBST(get_fs_root_and_pwd, "")
+        fi
+    else
+        AC_MSG_RESULT([assuming system does not have get_fs_root_and_pwd])
+        AC_SUBST(get_fs_root_and_pwd, "")
+    fi
+
     if test $((kern_version_code)) -ge 132623; then
         ## 2.6.15+
         # vfsmount's namespace element changed from mnt_namespace to mnt_ns in 2.6.20
@@ -1460,6 +1509,25 @@ if test $((kern_version_code)) -ge 132608; then
             if test $? -eq 0; then
                 AC_MSG_RESULT([detected])
                 AC_SUBST(filldirbackport,"-DTALPA_HAS_BACKPORTED_FILLDIR")
+            else
+                AC_MSG_RESULT([not detected])
+            fi
+        fi
+    fi
+
+    # Autodetect if RCU in struct mount was backported
+    # < 3.13.0
+    if test $((kern_version_code)) -lt 199936; then
+        if test "$auto_mountrcubackport" = "yes"; then
+            AC_MSG_CHECKING([for backported mount rcu])
+            if test "$rhel_release" = "yes"; then
+                ## 7.4
+                if test $((rhel_release_code)) -ge 1796; then
+                    AC_MSG_RESULT([detected])
+                    AC_SUBST(mountrcubackport,"-DTALPA_HAS_BACKPORTED_MOUNTRCU")
+                else
+                    AC_MSG_RESULT([not detected])
+                fi
             else
                 AC_MSG_RESULT([not detected])
             fi
@@ -2005,6 +2073,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@signalbackport@/${signalbackport}/; \
                 s/@jiffiesbackport@/${jiffiesbackport}/; \
                 s/@filldirbackport@/${filldirbackport}/; \
+                s/@mountrcubackport@/${mountrcubackport}/; \
                 s/@smbfs@/${smbfs}/; \
                 s/@buildlsm@/${lsm}/; \
                 s/@lsm265@/${lsm265}/; \
@@ -2038,8 +2107,11 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@strdupuser@/${strdupuser}/; \
                 s/@linuxuidgid@/${linuxuidgid}/; \
                 s/@lookup_mnt_last@/${lookup_mnt_last}/; \
+                s/@get_fs_root_and_pwd@/${get_fs_root_and_pwd}/; \
                 s/@vfsmount_namespace@/${vfsmount_namespace}/; \
-                s/@builddualfs@/${builddualfs}/; s/@dualfs@/${dualfs}/;" ${srcdir}/Makefile26.in >${srcdir}/Makefile
+                s/@compile_flags@/${compile_flags}/; \
+                s/@builddualfs@/${builddualfs}/; \
+                s/@dualfs@/${dualfs}/;" ${srcdir}/Makefile26.in >${srcdir}/Makefile
 
     ${SED} -e  "s/@talpaversion@/${talpaversion}/; \
                 s/@debug@/${debug}/; \
@@ -2062,6 +2134,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@signalbackport@/${signalbackport}/; \
                 s/@jiffiesbackport@/${jiffiesbackport}/; \
                 s/@filldirbackport@/${filldirbackport}/; \
+                s/@mountrcubackport@/${mountrcubackport}/; \
                 s/@smbfs@/${smbfs}/; \
                 s/@buildlsm@/${lsm}/; \
                 s/@lsm265@/${lsm265}/; \
@@ -2101,7 +2174,9 @@ if test $((kern_version_code)) -ge 132608; then
                 s!@unistd64x32include@!${unistd64x32include}!; \
                 s!@autoconf_h_include@!${autoconf_h_include}!; \
                 s/@lookup_mnt_last@/${lookup_mnt_last}/; \
+                s/@get_fs_root_and_pwd@/${get_fs_root_and_pwd}/; \
                 s/@vfsmount_namespace@/${vfsmount_namespace}/; \
+                s/@compile_flags@/${compile_flags}/; \
                 s/@dualfs@/${dualfs}/;" ${srcdir}/tests/modules/Makefile26.in >${srcdir}/tests/modules/Makefile
 else
     AC_MSG_RESULT([2.4 build system detected])
@@ -2202,6 +2277,7 @@ else
     AM_CONDITIONAL(BUILDDUALFS, test 1 -eq 1)
     ## Defined to be true so that tests are included in source tar file
     AM_CONDITIONAL(TESTXWORKAROUND, test 1 -eq 1)
+    AM_CONDITIONAL(TESTNAMESPACES, test 1 -eq 1)
 fi
 
 

@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -45,10 +45,6 @@
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
 #include <linux/uaccess.h>
 # endif
-#endif
-
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,35)
-# define TALPA_HANDLE_RELATIVE_PATH_IN_MOUNT
 #endif
 
 /*
@@ -2169,7 +2165,7 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
     const char*                 fsname = (const char *)mnt->mnt_sb->s_type->name;
     bool                        good_fs = false;
     bool                        hook_dops = false;
-    int                         i;
+    int                         propagationCount;
 
 
     /* We don't want to patch some filesystems, and for some we want
@@ -2299,8 +2295,8 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
     ret = prepareFilesystem(mnt, reg, smbfs, patch);
     if ( !ret )
     {
-        i = countPropagationPoints(mnt);
-        dbg("propagation points for mount on %s = %d", fsname, i);
+        propagationCount = countPropagationPoints(mnt);
+        dbg("propagation points for mount on %s = %d", fsname, propagationCount);
 
         /* Only add it to the list if this is a new patch (not a new
            instance of the existing one) */
@@ -2315,10 +2311,7 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
             if ( !ret )
             {
                 dbg("refcnt for %s = %d", fsname, atomic_read(&patch->refcnt));
-                for (;i>0;i--)
-                {
-                    atomic_inc(&patch->usecnt);
-                }
+                atomic_add(propagationCount, &patch->usecnt);
                 talpa_simple_unlock(&patch->lock);
             }
             else
@@ -2337,10 +2330,7 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
             shouldinc = repatchFilesystem(reg, smbfs, patch);
             if ( shouldinc && !(fromMount && (flags & MS_REMOUNT)) )
             {
-                for (;i>0;i--)
-                {
-                    atomic_inc(&patch->usecnt);
-                }
+                atomic_add(propagationCount, &patch->usecnt);
             }
             else
             {
@@ -3182,6 +3172,7 @@ VFSHookInterceptor* newVFSHookInterceptor(void)
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "binfmt_misc", false);
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "mqueue", true);
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "cgroup", false);
+    appendObject(&GL_object, &GL_object.mSkipFilesystems, "cgroup2", false);
 
     /* Filesystems not to be scanned immediately after mount */
 #ifdef TALPA_HAS_SMBFS

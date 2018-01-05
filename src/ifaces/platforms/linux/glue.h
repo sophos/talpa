@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -45,6 +45,10 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
 #include <linux/path.h>
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+# include <linux/cred.h>
 #endif
 
 #ifdef HAVE_LINUXUIDGID
@@ -143,6 +147,10 @@ static inline char *talpa_d_path(struct dentry *dentry, struct vfsmount *mnt, ch
 
 #endif /* 2.6.25 */
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,35)
+# define TALPA_HANDLE_RELATIVE_PATH_IN_MOUNT
+#endif
+
 #if  LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
 
 /* No path_lookup */
@@ -215,9 +223,19 @@ static inline unsigned long msecs_to_jiffies(const unsigned int m)
 /*
  * tasklist_lock un-export handling
  */
-#ifdef TALPA_NO_TASKLIST_LOCK
+#if defined TALPA_HIDDEN_TASKLIST_LOCK
 void talpa_tasklist_lock(void);
 void talpa_tasklist_unlock(void);
+#elif defined TALPA_NO_TASKLIST_LOCK
+static inline void talpa_tasklist_lock(void)
+{
+    rcu_read_lock();
+}
+
+static inline void talpa_tasklist_unlock(void)
+{
+    rcu_read_unlock();
+}
 #else
 static inline void talpa_tasklist_lock(void)
 {
@@ -327,19 +345,17 @@ TALPA_FILENAME_T * talpa_getname(const char * filename);
 #else
 # define talpa_getname getname
 #endif
+
+#ifdef TALPA_HANDLE_RELATIVE_PATH_IN_MOUNT
 /**
  * Implement our own copy, since kernel 3.12 gets rid of this exported function
  */
-
-#if  LINUX_VERSION_CODE < KERNEL_VERSION(3,12,0)
-# define TALPA_SYSTEM_GET_FS_ROOT_AND_PWD
-#endif
-
-#ifdef TALPA_SYSTEM_GET_FS_ROOT_AND_PWD
-# define talpa_get_fs_root_and_pwd get_fs_root_and_pwd
-#else
+# ifdef TALPA_SYSTEM_GET_FS_ROOT_AND_PWD
+#  define talpa_get_fs_root_and_pwd get_fs_root_and_pwd
+# else
 void talpa_get_fs_root_and_pwd(struct fs_struct *fs, struct path *root, struct path *pwd);
-#endif
+# endif
+#endif /* TALPA_HANDLE_RELATIVE_PATH_IN_MOUNT */
 
 #ifdef HAVE_LINUXUIDGID
 

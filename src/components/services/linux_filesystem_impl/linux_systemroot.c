@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -26,6 +26,10 @@
 #include <linux/mount.h>
 #include <linux/fs_struct.h>
 #include <asm/page.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+# include <linux/sched/task.h>
+#endif
 
 #include "common/talpa.h"
 #include "platforms/linux/glue.h"

@@ -3,7 +3,7 @@
 *
 * TALPA Filesystem Interceptor
 *
-* Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
+* Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
 *
 * This program is free software; you can redistribute it and/or modify it under the terms of the
 * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -444,11 +444,10 @@ char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt,
 /*
  * tasklist_lock un-export handling
  */
-#ifdef TALPA_NO_TASKLIST_LOCK
+#ifdef TALPA_HIDDEN_TASKLIST_LOCK
 void talpa_tasklist_lock(void)
 {
     rwlock_t* talpa_tasklist_lock_addr = (rwlock_t *)talpa_get_symbol("tasklist_lock", (void *)TALPA_TASKLIST_LOCK_ADDR);
-
 
     read_lock(talpa_tasklist_lock_addr);
 }
@@ -456,7 +455,6 @@ void talpa_tasklist_lock(void)
 void talpa_tasklist_unlock(void)
 {
     rwlock_t* talpa_tasklist_lock_addr = (rwlock_t *)talpa_get_symbol("tasklist_lock", (void *)TALPA_TASKLIST_LOCK_ADDR);
-
 
     read_unlock(talpa_tasklist_lock_addr);
 }
@@ -544,7 +542,8 @@ TALPA_FILENAME_T * talpa_getname(const char * filename )
 }
 #endif
 
-#ifndef TALPA_SYSTEM_GET_FS_ROOT_AND_PWD
+#ifdef TALPA_HANDLE_RELATIVE_PATH_IN_MOUNT
+# ifndef TALPA_SYSTEM_GET_FS_ROOT_AND_PWD
 void talpa_get_fs_root_and_pwd(
                 struct fs_struct *fs,
                 struct path *root,
@@ -557,8 +556,8 @@ void talpa_get_fs_root_and_pwd(
     path_get(pwd);
     spin_unlock(&fs->lock);
 }
-#endif
-
+# endif
+#endif /* TALPA_HANDLE_RELATIVE_PATH_IN_MOUNT */
 
 void* getUtsNamespace(struct task_struct* process)
 {

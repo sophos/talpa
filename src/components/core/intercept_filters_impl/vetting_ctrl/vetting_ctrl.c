@@ -18,7 +18,6 @@
  */
 
 #include <linux/kernel.h>
-#include <asm/uaccess.h>
 #include <linux/string.h>
 #include <linux/limits.h>
 #include <linux/sched.h>
@@ -36,6 +35,7 @@
 #include "platform/quirks.h"
 #include "platform/alloc.h"
 #include "platform/vfs_mount.h"
+#include "platform/uaccess.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
 # define TALPA_RESTRICT_OPEN_DURING_EXIT
@@ -708,13 +708,13 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
         {
             if (rootUtsNamespace)
             {
-                /* we're in a namespace/container, append '(namespace)' to the path */
+                /* we're in a mount namespace, append '(namespace)' to the path */
                 strcpy(((char *)file) + pos, " (namespace)");
                 pos += 12;
             }
             else
             {
-                /* we're in a namespace/container, append '(namespace)' to the path */
+                /* we're in a container, append '(container hostname=...)' to the path */
                 strcpy(((char *)file) + pos, " (container");
                 pos += 11;
 
