@@ -3161,6 +3161,7 @@ VFSHookInterceptor* newVFSHookInterceptor(void)
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "rpc_pipefs", false);
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "selinuxfs", false);
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "configfs", false);
+    appendObject(&GL_object, &GL_object.mSkipFilesystems, "efivarfs", false);
 #else
     appendObject(&GL_object, &GL_object.mSkipFilesystems, "usbdevfs", false);
 #endif
