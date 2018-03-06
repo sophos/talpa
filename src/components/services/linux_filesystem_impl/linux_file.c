@@ -24,6 +24,11 @@
 #include <linux/sched.h>
 #include <linux/quotaops.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+#include <linux/fcntl.h>
+#include <linux/stat.h>
+#endif
+
 /* Header goes away in 2.6.39, but we don't use it on 2.6 anyway */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
 #include <linux/smp_lock.h>
@@ -481,11 +486,26 @@ static int close(void* self)
 
 static loff_t length(const void* self)
 {
+    int error;
+    struct kstat stat;
+
     if ( unlikely(!this->mFile) )
     {
         return -EBADF;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+    error = vfs_getattr(&this->mFile->f_path, &stat,
+            STATX_BASIC_STATS, AT_STATX_DONT_SYNC);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0)
+    error = vfs_getattr(&this->mFile->f_path, &stat);
+#else
+    error = vfs_getattr(this->mFile->f_vfsmnt, this->mFile->f_dentry, &stat);
+#endif
+    if ( likely(error == 0) )
+        return stat.size;
+
+    // fallback - works for most filesystems, but not overlayfs
     return this->mFile->f_dentry->d_inode->i_size;
 }
 
