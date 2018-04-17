@@ -980,6 +980,18 @@ if test $hitcnt -gt 1 ; then
     AC_MSG_ERROR([ambiguous])
 fi
 
+# Check for vfs_readdir (only for kernels older than 3.11.0)
+if test $((kern_version_code)) -lt 199424; then
+    TALPA_LOCATE_HEADER(linux/fs.h, $kernelhdrspath)
+    AC_MSG_CHECKING([for vfs_readdir])
+    ${EGREP} vfs_readdir $TALPA_HEADER_LOCATION/linux/fs.h >/dev/null 2>&1
+    if test $? -eq 0; then
+        AC_SUBST(vfsreaddir, "-DTALPA_VFSREADDIR")
+        AC_MSG_RESULT([present])
+    else
+        AC_MSG_RESULT([not present])
+    fi
+fi
 
 # Check for snprintf only for kernels older than 2.4.10
 if test $((kern_version_code)) -lt 132106; then
@@ -2064,6 +2076,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@dotruncatetype@/${dotruncatetype}/; \
                 s/@dotruncateaddr@/${dotruncateaddr}/; \
                 s/@vfsunlink@/${vfsunlink}/; \
+                s/@vfsreaddir@/${vfsreaddir}/; \
                 s/@tasknewtty@/${tasknewtty}/; \
                 s/@rcubackport@/${rcubackport}/; \
                 s/@mutexes@/${mutexes}/; \
@@ -2125,6 +2138,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@dotruncatetype@/${dotruncatetype}/; \
                 s/@dotruncateaddr@/${dotruncateaddr}/; \
                 s/@vfsunlink@/${vfsunlink}/; \
+                s/@vfsreaddir@/${vfsreaddir}/; \
                 s/@tasknewtty@/${tasknewtty}/; \
                 s/@rcubackport@/${rcubackport}/; \
                 s/@mutexes@/${mutexes}/; \

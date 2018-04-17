@@ -48,6 +48,7 @@ EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../incl
 		@putname@ \
 		@getname@ \
 		@vfsunlink@ \
+		@vfsreaddir@ \
 		@lookup_mnt_last@ \
 		@get_fs_root_and_pwd@ \
 		@vfsmount_namespace@ \
