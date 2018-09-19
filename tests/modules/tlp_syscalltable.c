@@ -61,18 +61,31 @@
  * of __MAP starting at the third one) is in the same format as
  * for SYSCALL_DEFINE<n>/COMPAT_SYSCALL_DEFINE<n>
  */
-#define __MAP0(m,...)
-#define __MAP1(m,t,a,...) m(t,a)
-#define __MAP2(m,t,a,...) m(t,a), __MAP1(m,__VA_ARGS__)
-#define __MAP3(m,t,a,...) m(t,a), __MAP2(m,__VA_ARGS__)
-#define __MAP4(m,t,a,...) m(t,a), __MAP3(m,__VA_ARGS__)
-#define __MAP5(m,t,a,...) m(t,a), __MAP4(m,__VA_ARGS__)
-#define __MAP6(m,t,a,...) m(t,a), __MAP5(m,__VA_ARGS__)
-#define __MAP(n,...) __MAP##n(__VA_ARGS__)
+# define __MAP0(m,...)
+# define __MAP1(m,t,a,...) m(t,a)
+# define __MAP2(m,t,a,...) m(t,a), __MAP1(m,__VA_ARGS__)
+# define __MAP3(m,t,a,...) m(t,a), __MAP2(m,__VA_ARGS__)
+# define __MAP4(m,t,a,...) m(t,a), __MAP3(m,__VA_ARGS__)
+# define __MAP5(m,t,a,...) m(t,a), __MAP4(m,__VA_ARGS__)
+# define __MAP6(m,t,a,...) m(t,a), __MAP5(m,__VA_ARGS__)
+# define __MAP(n,...) __MAP##n(__VA_ARGS__)
 #endif
 
 #ifndef __SC_DECL
-#define __SC_DECL(t, a)	t a
+# define __SC_DECL(t, a)	t a
+#endif
+
+/* SYSCALL_DEFINE* only from kernel 2.6.27 onwards */
+#ifndef SYSCALL_DEFINEx
+# define SYSCALL_DEFINEx(x, name, ...) \
+    asmlinkage long sys##name(__MAP(x, __SC_DECL, __VA_ARGS__))
+# define SYSCALL_DEFINE0(name)	   asmlinkage long sys_##name(void)
+# define SYSCALL_DEFINE1(name, ...) SYSCALL_DEFINEx(1, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE2(name, ...) SYSCALL_DEFINEx(2, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE3(name, ...) SYSCALL_DEFINEx(3, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE4(name, ...) SYSCALL_DEFINEx(4, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE5(name, ...) SYSCALL_DEFINEx(5, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE6(name, ...) SYSCALL_DEFINEx(6, _##name, __VA_ARGS__)
 #endif
 
 // if using syscall wrapper
