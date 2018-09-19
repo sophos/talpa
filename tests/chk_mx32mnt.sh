@@ -1,7 +1,6 @@
+#! /bin/bash
 #
-# talpa-syscall/Makefile.am
-#
-# TALPA Filesystem Interceptor
+# TALPA test script
 #
 # Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
 #
@@ -16,14 +15,7 @@
 # write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
 
-include src/app-ctrl/intercepts/talpa-syscall/common.mk
+. ${srcdir}/talpa-init.sh
+./chk_mx32mnt
 
-talpa_syscall_o_SOURCES =  $(talpaSyscallSOURCES)
-
-talpa_syscall_o_CFLAGS  =   $(modules_CFLAGS) @hidden@
-talpa_syscall_o_LINK    =   $(MODULELINKCMD)
-
-TALPAMODULESRC += $(talpa_syscall_o_SOURCES)
-#
-# End of talpa-syscall/Makefile.am
-#
+exit $?

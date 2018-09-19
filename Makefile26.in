@@ -25,7 +25,6 @@ EXTRA_CFLAGS += -I$(src)/src -I$(src)/src/ifaces -I$(src)/include \
 		@lsm2614@ \
 		@lsmkeys@ \
 		@hidden@ \
-		@execve@ \
 		@xhack@ \
 		@structfilename@ \
 		@hrtimers@ \

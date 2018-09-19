@@ -3,7 +3,7 @@
 ##
 ## TALPA Filesystem Interceptor
 ##
-## Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
+## Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
 ##
 ## This program is free software; you can redistribute it and/or modify it under the terms of the
 ## GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -487,8 +487,23 @@ TESTS +=                  chk_bind.sh \
                           chk_bind1.sh \
                           chk_bind2.sh \
                           chk_bind3.sh \
-                          chk_move.sh \
-                          tlp-cleanup.sh
+                          chk_move.sh
+
+if M32_BUILD
+check_PROGRAMS +=         chk_m32mnt
+chk_m32mnt_SOURCES =      chkext2mnt.c
+chk_m32mnt_CFLAGS =       $(USERSPACE_C_FLAGS) -m32
+TESTS +=                  chk_m32mnt.sh
+endif
+
+if MX32_BUILD
+check_PROGRAMS +=         chk_mx32mnt
+chk_mx32mnt_SOURCES =     chkext2mnt.c
+chk_mx32mnt_CFLAGS =      $(USERSPACE_C_FLAGS) -mx32
+TESTS +=                  chk_mx32mnt.sh
+endif
+
+TESTS +=                  tlp-cleanup.sh
 
 check_SCRIPTS =           $(TESTS) \
                           sysctldisable.sh \

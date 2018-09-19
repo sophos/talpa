@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -87,7 +87,7 @@ int talpa_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
                 if ( fi )
                 {
                     tf.operation = fi->i_IFileInfo.operation(fi);
-                    strncpy(tf.name,fi->i_IFileInfo.filename(fi),sizeof(tf.name));
+                    strlcpy(tf.name,fi->i_IFileInfo.filename(fi),sizeof(tf.name));
                     tf.major = fi->i_IFileInfo.deviceMajor(fi);
                     tf.minor = fi->i_IFileInfo.deviceMinor(fi);
                     ret = copy_to_user((void *)parm,&tf,sizeof(struct talpa_file));
@@ -116,7 +116,7 @@ int talpa_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
                 if ( fi )
                 {
                     tf.operation = fi->i_IFileInfo.operation(fi);
-                    strncpy(tf.name,fi->i_IFileInfo.filename(fi),sizeof(tf.name));
+                    strlcpy(tf.name,fi->i_IFileInfo.filename(fi),sizeof(tf.name));
                     tf.major = fi->i_IFileInfo.deviceMajor(fi);
                     tf.minor = fi->i_IFileInfo.deviceMinor(fi);
                     ret = copy_to_user((void *)parm,&tf,sizeof(struct talpa_file));
@@ -157,7 +157,7 @@ static int __init talpa_test_init(void)
     int ret;
 
     mSystemRoot = newLinuxSystemRoot();
-    if (mSystemRoot == 0)
+    if (mSystemRoot == NULL)
     {
         err("Failed to create system root");
         return -ENOMEM;

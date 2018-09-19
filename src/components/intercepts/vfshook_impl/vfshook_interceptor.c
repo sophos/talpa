@@ -95,12 +95,11 @@ static void destroyStringSet(void *self, char **set);
 
 static long talpaDummyOpen(unsigned int fd);
 static void talpaDummyClose(unsigned int fd);
-static long talpaDummyUselib(const char* library);
-static int  talpaDummyExecve(const TALPA_FILENAME_T* name);
-static long talpaPreMount(char* dev_name, char* dir_name, char* type, unsigned long flags, void* data);
-static long talpaPostMount(int err, char* dev_name, char* dir_name, char* type, unsigned long flags, void* data);
-static void talpaPreUmount(char* name, int flags, void** ctx);
-static void talpaPostUmount(int err, char* name, int flags, void* ctx);
+static long talpaDummyUselib(const char __user * library);
+static long talpaPreMount(char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data);
+static long talpaPostMount(int err, char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data);
+static void talpaPreUmount(char __user * name, int flags, void** ctx);
+static void talpaPostUmount(int err, char __user * name, int flags, void* ctx);
 
 static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMount);
 
@@ -202,7 +201,7 @@ static VFSHookInterceptor GL_object =
         {
             .open_post = talpaDummyOpen,
             .close_pre = talpaDummyClose,
-            .execve_pre = talpaDummyExecve,
+            .execve_pre = NULL,
             .uselib_pre = talpaDummyUselib,
             .mount_pre = talpaPreMount,
             .mount_post = talpaPostMount,
@@ -459,7 +458,7 @@ static int talpaFlush(struct file *filp, fl_owner_t id)
 
     if ( likely( patch != NULL ) )
     {
-        if (patch->flush != 0)
+        if (patch->flush != NULL)
         {
             ret = patch->flush(filp,id);
         }
@@ -2390,15 +2389,7 @@ static void talpaDummyClose(unsigned int fd)
     return;
 }
 
-static long talpaDummyUselib(const char* library)
-{
-    /* We do not want to intercept this through talpa-syscallhook! */
-    err("Incorrect usage of talpa-syscallhook and talpa-vfshook modules!");
-
-    return 0;
-}
-
-static int  talpaDummyExecve(const TALPA_FILENAME_T* name)
+static long talpaDummyUselib(const char __user * library)
 {
     /* We do not want to intercept this through talpa-syscallhook! */
     err("Incorrect usage of talpa-syscallhook and talpa-vfshook modules!");
@@ -2433,11 +2424,11 @@ static int talpa_copy_mount_string(const void __user *data, char **where)
 #define VFSHOOK_MS_IGNORE (MS_BIND)
 #endif
 
-static long talpaPreMount(char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void* data)
+static long talpaPreMount(char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data)
 {
-    char* dev = 0;
+    char* dev = NULL;
     TALPA_FILENAME_T* dir;
-    char* fstype = 0;
+    char* fstype = NULL;
     int decision = 0;
     IFilesystemInfo *pFSInfo;
 
@@ -2453,7 +2444,7 @@ static long talpaPreMount(char __user * dev_name, char __user * dir_name, char _
         return 0;
     }
 
-    decision = talpa_copy_mount_string(dev_name,&dev);
+    decision = talpa_copy_mount_string(dev_name, &dev);
     if ( decision < 0 )
     {
         dbg("talpaPreMount failed to copy dev_name");
@@ -2472,8 +2463,8 @@ static long talpaPreMount(char __user * dev_name, char __user * dir_name, char _
      */
     if ( unlikely( ( (flags & VFSHOOK_MS_IGNORE) != 0 ) ) )
     {
-        char *dir_str = 0;
-        int ret = talpa_copy_mount_string(dir_name,&dir_str);
+        char *dir_str = NULL;
+        int ret = talpa_copy_mount_string(dir_name, &dir_str);
         if ( ret < 0 )
         {
             dir_str = "<unknown>";
@@ -2482,7 +2473,7 @@ static long talpaPreMount(char __user * dev_name, char __user * dir_name, char _
         goto out2;
     }
 
-    decision = talpa_copy_mount_string(type,&fstype);
+    decision = talpa_copy_mount_string(type, &fstype);
     if ( decision < 0 )
     {
         dbg("talpa_copy_mount returned error is %d",decision);
@@ -2607,7 +2598,7 @@ global_root:
 
 #endif
 
-static long talpaPostMount(int err, char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void* data)
+static long talpaPostMount(int err, char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data)
 {
 #ifdef TALPA_HAVE_PATH_LOOKUP
     struct nameidata nd;
@@ -2624,7 +2615,7 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
     int ret = 0;
 
     struct vfsmount *mnt;
-    char *page = 0;
+    char *page = NULL;
 
 #ifdef MS_SHARED
     unsigned int ignore_mask = ( 0
@@ -2842,7 +2833,7 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
 
 out:
 
-    if (page != 0)
+    if (page != NULL)
     {
         free_page((unsigned long) page);
     }
@@ -2889,7 +2880,7 @@ static void talpaPreUmount(char __user * name, int flags, void** ctx)
     return;
 }
 
-static void talpaPostUmount(int err, char *name, int flags, void* ctx)
+static void talpaPostUmount(int err, char __user * name, int flags, void* ctx)
 {
     IFilesystemInfo *pFSInfo = (IFilesystemInfo *)ctx;
     struct patchedFilesystem *p;
@@ -3823,7 +3814,7 @@ static const char* config(const void* self, const char* name)
         return retstring;
     }
 
-    return 0;
+    return NULL;
 }
 
 static void  setConfig(void* self, const char* name, const char* value)

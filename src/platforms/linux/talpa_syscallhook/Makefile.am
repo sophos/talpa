@@ -3,7 +3,7 @@
 #
 # TALPA Filesystem Interceptor
 #
-# Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+# Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
 #
 # This program is free software; you can redistribute it and/or modify it under the terms of the
 # GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -20,7 +20,7 @@ include src/platforms/linux/talpa_syscallhook/common.mk
 
 talpa_syscallhook_o_SOURCES =  $(talpaSyscallHookSOURCES)
 
-talpa_syscallhook_o_CFLAGS  =  $(modules_CFLAGS) @hidden@ @execve@
+talpa_syscallhook_o_CFLAGS  =  $(modules_CFLAGS) @hidden@
 talpa_syscallhook_o_LINK    =  $(MODULELINKCMD)
 
 TALPAMODULESRC += $(talpa_syscallhook_o_SOURCES)

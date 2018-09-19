@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -48,12 +48,11 @@ static void deleteSyscallInterceptor(struct tag_SyscallInterceptor* object);
 
 static long talpaOpenHook(unsigned int fd);
 static void talpaCloseHook(unsigned int fd);
-static long talpaUselibHook(const char* library);
-static int  talpaExecveHook(const TALPA_FILENAME_T* name);
-static long talpaMountHook(char* dev_name, char* dir_name, char* type, unsigned long flags, void* data);
-static long talpaMountDummy(int err, char* dev_name, char* dir_name, char* type, unsigned long flags, void* data);
-static void talpaUmountHook(char* name, int flags, void** ctx);
-static void talpaUmountDummy(int err, char* name, int flags, void *ctx);
+static long talpaUselibHook(const char __user * library);
+static long talpaMountHook(char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data);
+static long talpaMountDummy(int err, char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data);
+static void talpaUmountHook(char __user * name, int flags, void** ctx);
+static void talpaUmountDummy(int err, char __user * name, int flags, void *ctx);
 
 static bool hook(void* self);
 static bool unhook(void* self);
@@ -123,7 +122,7 @@ static SyscallInterceptor GL_object =
         {
             .open_post = talpaOpenHook,
             .close_pre = talpaCloseHook,
-            .execve_pre = talpaExecveHook,
+            .execve_pre = NULL,
             .uselib_pre = talpaUselibHook,
             .mount_pre = talpaMountHook,
             .mount_post = talpaMountDummy,
@@ -187,7 +186,7 @@ static void deleteSyscallInterceptor(struct tag_SyscallInterceptor* object)
  * Hook helper functions
  */
 
-static inline int examineFile(EFilesystemOperation op, const char *filename, int flags, int mode)
+static inline int examineFile(EFilesystemOperation op, const char __user * filename, int flags, int mode)
 {
     int decision = 0;
     TALPA_FILENAME_T* tmp = talpa_getname(filename);
@@ -301,67 +300,6 @@ static inline const char* getRealExecutable(IFile *pFile, const char* filename, 
     return filename;
 }
 
-static inline int examineExecve(const TALPA_FILENAME_T *filename)
-{
-    int    decision = 0;
-    IFile* pFile    = GL_object.mLinuxFilesystemFactory->i_IFilesystemFactory.newFile(GL_object.mLinuxFilesystemFactory);
-
-
-    if ( likely(pFile != NULL) )
-    {
-        IFileInfo* pFInfo;
-        char buf[BINPRM_BUF_SIZE + 1];
-        const char* real;
-        const char* fname = getCStr(filename);
-
-
-        decision = pFile->openExec(pFile->object, getCStr(filename));
-
-        if (  unlikely(decision < 0) )
-        {
-            dbg("[intercepted %u-%u-%u] Failed to open file! error-code:%d", processParentPID(current), current->tgid, current->pid, decision);
-            pFile->delete(pFile);
-
-            return decision;
-        }
-
-        real = getRealExecutable(pFile, fname, buf);
-
-        if ( unlikely( IS_ERR(real) ) )
-        {
-            dbg("[intercepted %u-%u-%u] Failed to parse executable! error-code:%ld", processParentPID(current), current->tgid, current->pid, PTR_ERR(real));
-            pFile->delete(pFile);
-
-            return PTR_ERR(real);
-        }
-        else if ( unlikely( real != fname ) )
-        {
-            pFile->close(pFile->object);
-            decision = pFile->openExec(pFile->object, real);
-
-            if (  unlikely(decision < 0) )
-            {
-                dbg("[intercepted %u-%u-%u] Failed to open interpreter! error-code:%d", processParentPID(current), current->tgid, current->pid, decision);
-                pFile->delete(pFile);
-
-                return decision;
-            }
-        }
-
-        pFInfo = GL_object.mLinuxFilesystemFactory->i_IFilesystemFactory.newFileInfo(GL_object.mLinuxFilesystemFactory, EFS_Exec, real, 0, 0);
-
-        if ( likely(pFInfo != NULL) )
-        {
-            decision = GL_object.mTargetProcessor->examineFileInfo(GL_object.mTargetProcessor, pFInfo, pFile);
-            pFInfo->delete(pFInfo);
-        }
-
-        pFile->delete(pFile->object);
-    }
-
-    return decision;
-}
-
 static int talpa_copy_mount_string(const void __user *data, char **where)
 {
 	char *tmp;
@@ -383,15 +321,15 @@ static int talpa_copy_mount_string(const void __user *data, char **where)
 	return 0;
 }
 
-static int examineMount(char* dev_name, char* dir_name, char* type, unsigned long flags, void* data)
+static int examineMount(char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data)
 {
-    char* dev = 0;
+    char* dev = NULL;
     TALPA_FILENAME_T* dir;
-    char* fstype = 0;
+    char* fstype = NULL;
     int decision = 0;
     IFilesystemInfo *pFSInfo;
 
-    decision = talpa_copy_mount_string(dev_name,&dev);
+    decision = talpa_copy_mount_string(dev_name, &dev);
     if ( decision < 0 )
     {
         goto out;
@@ -404,7 +342,7 @@ static int examineMount(char* dev_name, char* dir_name, char* type, unsigned lon
         goto out1;
     }
 
-    decision = talpa_copy_mount_string(type,&fstype);
+    decision = talpa_copy_mount_string(type, &fstype);
     if ( decision < 0 )
     {
         goto out2;
@@ -437,7 +375,7 @@ out:
     return decision;
 }
 
-static void examineUmount(char* name, int flags)
+static void examineUmount(char __user * name, int flags)
 {
     TALPA_FILENAME_T* kname;
 
@@ -496,7 +434,7 @@ static void talpaCloseHook(unsigned int fd)
     examineFd(EFS_Close, fd);
 }
 
-static long talpaUselibHook(const char* library)
+static long talpaUselibHook(const char __user * library)
 {
     int decision;
 
@@ -516,27 +454,7 @@ static long talpaUselibHook(const char* library)
     return decision;
 }
 
-static int  talpaExecveHook(const TALPA_FILENAME_T* name)
-{
-    int decision;
-
-
-    if ( unlikely( !(GL_object.mHookingMask & HOOK_EXEC) ) )
-    {
-        return 0;
-    }
-
-    decision = examineExecve(name);
-
-    if ( unlikely(decision < 0) )
-    {
-        dbg("[intercepted %u-%u-%u] Exec refused. error:%d", processParentPID(current), current->tgid, current->pid, decision);
-    }
-
-    return decision;
-}
-
-static long talpaMountHook(char* dev_name, char* dir_name, char* type, unsigned long flags, void* data)
+static long talpaMountHook(char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data)
 {
     int decision;
 
@@ -556,12 +474,12 @@ static long talpaMountHook(char* dev_name, char* dir_name, char* type, unsigned 
     return decision;
 }
 
-static long talpaMountDummy(int err, char* dev_name, char* dir_name, char* type, unsigned long flags, void* data)
+static long talpaMountDummy(int err, char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data)
 {
     return 0;
 }
 
-static void talpaUmountHook(char* name, int flags, void** ctx)
+static void talpaUmountHook(char __user * name, int flags, void** ctx)
 {
     if ( unlikely( !(GL_object.mHookingMask & HOOK_UMOUNT) ) )
     {
@@ -571,7 +489,7 @@ static void talpaUmountHook(char* name, int flags, void** ctx)
     examineUmount(name, flags);
 }
 
-static void talpaUmountDummy(int err, char* name, int flags, void* ctx)
+static void talpaUmountDummy(int err, char __user * name, int flags, void* ctx)
 {
     return;
 }
@@ -821,7 +739,7 @@ static const char* config(const void* self, const char* name)
     {
         return cfgElement->value;
     }
-    return 0;
+    return NULL;
 }
 
 static void  setConfig(void* self, const char* name, const char* value)
