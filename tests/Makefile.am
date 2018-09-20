@@ -493,6 +493,7 @@ if M32_BUILD
 check_PROGRAMS +=         chk_m32mnt
 chk_m32mnt_SOURCES =      chkext2mnt.c
 chk_m32mnt_CFLAGS =       $(USERSPACE_C_FLAGS) -m32
+chk_m32mnt_LDFLAGS =       $(USERSPACE_C_FLAGS) -m32
 TESTS +=                  chk_m32mnt.sh
 endif
 
@@ -500,6 +501,7 @@ if MX32_BUILD
 check_PROGRAMS +=         chk_mx32mnt
 chk_mx32mnt_SOURCES =     chkext2mnt.c
 chk_mx32mnt_CFLAGS =      $(USERSPACE_C_FLAGS) -mx32
+chk_mx32mnt_LDFLAGS =      $(USERSPACE_C_FLAGS) -mx32
 TESTS +=                  chk_mx32mnt.sh
 endif
 

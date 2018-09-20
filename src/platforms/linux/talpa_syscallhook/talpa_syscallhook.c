@@ -133,14 +133,18 @@ const char talpa_iface_version[] = "$TALPA_IFACE_VERSION:" TALPA_SYSCALLHOOK_IFA
 #endif
 
 #ifndef __SC_DECL
-# define __SC_DECL(t, a) t a
+# define __TALPA_SC_DECL(t, a) t a
+#else
+# define __TALPA_SC_DECL __SC_DECL
 #endif
 
 /* SYSCALL_DEFINE* only from kernel 2.6.27 onwards */
 #ifndef SYSCALL_DEFINEx
 # define SYSCALL_DEFINEx(x, name, ...) \
-    asmlinkage long sys##name(__MAP(x, __SC_DECL, __VA_ARGS__))
-# define SYSCALL_DEFINE0(name)	   asmlinkage long sys_##name(void)
+    asmlinkage long sys##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))
+#endif
+#ifndef SYSCALL_DEFINE1
+# define SYSCALL_DEFINE0(name) asmlinkage long sys_##name(void)
 # define SYSCALL_DEFINE1(name, ...) SYSCALL_DEFINEx(1, _##name, __VA_ARGS__)
 # define SYSCALL_DEFINE2(name, ...) SYSCALL_DEFINEx(2, _##name, __VA_ARGS__)
 # define SYSCALL_DEFINE3(name, ...) SYSCALL_DEFINEx(3, _##name, __VA_ARGS__)
@@ -169,7 +173,7 @@ const char talpa_iface_version[] = "$TALPA_IFACE_VERSION:" TALPA_SYSCALLHOOK_IFA
     __diag_push();\
     __diag_ignore(GCC, 8, "-Wattribute-alias", \
         "Type aliasing is used to sanitize syscall arguments");\
-    static inline long __orig_##name(__MAP(x, __SC_DECL, __VA_ARGS__))\
+    static inline long __orig_##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))\
         __attribute__((alias(__stringify(__origl_##name))));\
     static inline long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__));\
     static inline long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__))\
@@ -188,13 +192,13 @@ const char talpa_iface_version[] = "$TALPA_IFACE_VERSION:" TALPA_SYSCALLHOOK_IFA
 # ifdef CONFIG_IA32_EMULATION
 #  define SYSCALL_IA32_FN(name) sys_##name
 #  define SYSCALL_IA32_ORIG(x, name, ...) \
-    static asmlinkage long __attribute__((unused)) (*orig32_##name)(__MAP(x, __SC_DECL, __VA_ARGS__));
+    static asmlinkage long __attribute__((unused)) (*orig32_##name)(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__));
 # else
 #  define SYSCALL_IA32_ORIG(x, name, ...)
 # endif
 # define SYSCALL_ORIGx(x, name, ...) \
     SYSCALL_IA32_ORIG(x, name, __VA_ARGS__)\
-    static asmlinkage long (*orig_##name)(__MAP(x, __SC_DECL, __VA_ARGS__))
+    static asmlinkage long (*orig_##name)(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))
 # define CALL_ORIGx(x, name, ...) name(__VA_ARGS__)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0) */
 
