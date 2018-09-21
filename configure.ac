@@ -2283,6 +2283,8 @@ else
     ## Defined to be true so that tests are included in source tar file
     AM_CONDITIONAL(TESTXWORKAROUND, test 1 -eq 1)
     AM_CONDITIONAL(TESTNAMESPACES, test 1 -eq 1)
+    AM_CONDITIONAL(M32_BUILD, test 1 -eq 1)
+    AM_CONDITIONAL(MX32_BUILD, test 1 -eq 1)
 fi
 
 
