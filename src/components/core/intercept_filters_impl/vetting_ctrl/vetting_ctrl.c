@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -428,7 +428,7 @@ static inline void waitVettingResponse(const void* self, VettingGroup* group, Ve
                 loff_t offset;
                 void* fsobj1;
                 void* fsobj2;
-                int ret = -ENODATA;
+                ret = -ENODATA;
 
 
                 /* Remember the current file position and close the file */
@@ -568,7 +568,7 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     const char* rootdir;
     unsigned int operation;
     int ret;
-    char* local_filename;
+    const char* local_filename;
     struct TalpaPacket_VettingDetails* packet;
 #ifdef TALPA_MNT_NAMESPACE
     char* hostname = NULL;
@@ -671,9 +671,24 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
 
     rootdir = threadInfo->rootDir(threadInfo);
 
-    if ( likely(rootdir != NULL) )
+    local_filename = filename;
+
+    if ( likely(rootdir != NULL && filename != NULL) )
     {
         rootdir_len = strlen(rootdir);
+
+        if ( unlikely(rootdir_len > 1) )
+        {
+            /* ensure that filename is inside the chroot location */
+            if ( unlikely(strncmp(rootdir, filename, rootdir_len ) != 0) )
+            {
+                dbg("File is not inside chroot: %s %s", filename, rootdir);
+                rootdir_len = 0;
+                /* don't attempt to reopen the file by path */
+                local_filename = NULL;
+            }
+        }
+
         /* Accomodate lazy userspace by saying that this process has no root. Poor process. ;( */
         if ( likely(rootdir_len == 1) )
         {
@@ -694,13 +709,13 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
     packet->egid = userInfo->egid(userInfo);
     {
         size_t pos = sizeof(struct TalpaPacketFragment_FileDetails);
-        struct TalpaPacketFragment_FileDetails* file = (struct TalpaPacketFragment_FileDetails *)(((char *)packet) + sizeof(struct TalpaPacket_VettingDetails));
-        file->operation = this->mFOPLookup[operation];
-        file->flags = info->flags(info);
-        file->mode = info->mode(info);
+        struct TalpaPacketFragment_FileDetails* fdetails = (struct TalpaPacketFragment_FileDetails *)(((char *)packet) + sizeof(struct TalpaPacket_VettingDetails));
+        fdetails->operation = this->mFOPLookup[operation];
+        fdetails->flags = info->flags(info);
+        fdetails->mode = info->mode(info);
         if ( likely(filename != NULL) )
         {
-            strcpy(((char *)file) + pos, filename);
+            strcpy(((char *)fdetails) + pos, filename);
             pos += filename_len;
         }
 #ifdef TALPA_MNT_NAMESPACE
@@ -709,23 +724,23 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
             if (rootUtsNamespace)
             {
                 /* we're in a mount namespace, append '(namespace)' to the path */
-                strcpy(((char *)file) + pos, " (namespace)");
+                strcpy(((char *)fdetails) + pos, " (namespace)");
                 pos += 12;
             }
             else
             {
                 /* we're in a container, append '(container hostname=...)' to the path */
-                strcpy(((char *)file) + pos, " (container");
+                strcpy(((char *)fdetails) + pos, " (container");
                 pos += 11;
 
                 if ( hostname != NULL)
                 {
-                    strcpy(((char *)file) + pos, " hostname=");
+                    strcpy(((char *)fdetails) + pos, " hostname=");
                     pos += 10;
-                    strcpy(((char *)file) + pos, hostname);
+                    strcpy(((char *)fdetails) + pos, hostname);
                     pos += strlen(hostname);
                 }
-                strcpy(((char *)file) + pos, ")");
+                strcpy(((char *)fdetails) + pos, ")");
                 pos += 1;
             }
         }
@@ -785,8 +800,6 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
         threadInfo->delete(threadInfo);
         return;
     }
-
-    local_filename = (char *)filename;
 
     if ( likely( !file->isOpen(file->object) ) )
     {
@@ -1006,9 +1019,20 @@ static void examineFilesystem(const void* self, IEvaluationReport* report,
     rootdir = threadInfo->rootDir(threadInfo);
 
     len = sizeof(struct TalpaPacket_VettingDetails) + sizeof(struct TalpaPacketFragment_FilesystemDetails);
-    if ( likely(rootdir != NULL) )
+    if ( likely(rootdir != NULL && dev != NULL) )
     {
         rootdir_len = strlen(rootdir);
+
+        if ( unlikely(rootdir_len > 1) )
+        {
+            /* ensure that device path is inside the chroot location */
+            if ( unlikely(strncmp(rootdir, dev, rootdir_len ) != 0) )
+            {
+                dbg("Device file is not inside chroot: %s %s", dev, rootdir);
+                rootdir_len = 0;
+            }
+        }
+
         /* See comment in examineFile */
         if ( likely(rootdir_len == 1) )
         {
@@ -2562,7 +2586,7 @@ static const char* config(const void* self, const char* name)
 
         return retstring;
     }
-    return 0;
+    return NULL;
 }
 
 static void  setConfig(void* self, const char* name, const char* value)
