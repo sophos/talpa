@@ -173,10 +173,10 @@ const char talpa_iface_version[] = "$TALPA_IFACE_VERSION:" TALPA_SYSCALLHOOK_IFA
     __diag_push();\
     __diag_ignore(GCC, 8, "-Wattribute-alias", \
         "Type aliasing is used to sanitize syscall arguments");\
-    static inline long __orig_##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))\
+    static long __orig_##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))\
         __attribute__((alias(__stringify(__origl_##name))));\
-    static inline long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__));\
-    static inline long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__))\
+    static long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__));\
+    static long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__))\
     {\
         struct pt_regs regs;\
         unsigned long args[] = { __MAP(x, __SC_ARGS, __VA_ARGS__) };\
@@ -884,25 +884,27 @@ static void **talpa_find_syscall_table(void **ptr, const unsigned int unique_sys
     void **limit = ptr + 0xa000;
     void **table = NULL;
 #ifdef DEBUG
-    unsigned int i;
-
-    dbg_start();
-    dbg_cont("unique: ");
-    for ( i = 0; i < num_unique_syscalls; i++ )
     {
-        dbg_cont("%u ", unique_syscalls[i]);
-    }
-    dbg_end();
+        unsigned int i;
 
-    dbg_start();
-    dbg_cont("zapped: ");
-    for ( i = 0; i < num_zapped_syscalls; i++ )
-    {
-        dbg_cont("%u ", zapped_syscalls[i]);
-    }
-    dbg_end();
+        dbg_start();
+        dbg_cont("unique: ");
+        for ( i = 0; i < num_unique_syscalls; i++ )
+        {
+            dbg_cont("%u ", unique_syscalls[i]);
+        }
+        dbg_end();
 
-    dbg("scan from 0x%p to 0x%p", ptr, limit);
+        dbg_start();
+        dbg_cont("zapped: ");
+        for ( i = 0; i < num_zapped_syscalls; i++ )
+        {
+            dbg_cont("%u ", zapped_syscalls[i]);
+        }
+        dbg_end();
+
+        dbg("scan from 0x%p to 0x%p", ptr, limit);
+    }
 #endif
 
     for ( ; ptr < limit && table == NULL; ptr++ )
