@@ -36,7 +36,26 @@ tmpdir='/tmp/tlp-test'
 
 dd if=/dev/zero of=${tmpdir}/fs.img bs=1M count=4 >/dev/null 2>&1
 
-device=`losetup --find --show ${tmpdir}/fs.img`
+function add_loopback()
+{
+    local file=$1
+
+    if losetup --find --show ${file} 2>/dev/null; then
+        return 0
+    fi
+
+    local device
+    for device in /dev/loop[0-7]; do
+        if losetup $device $file 2>/dev/null; then
+            echo $device
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+device=`add_loopback ${tmpdir}/fs.img`
 rc=$?
 if test $rc -ne 0 -o -z "$device"; then
     echo >&2 "Failed to create loopback device"
@@ -47,7 +66,7 @@ ${mkfs} ${device} >/dev/null 2>&1
 rc=$?
 if test $rc -ne 0; then
     echo >&2 "Failed to create filesystem"
-    losetup --detach ${device} >/dev/null 2>&1
+    losetup -d ${device} >/dev/null 2>&1
     exit $rc
 fi
 
@@ -60,7 +79,7 @@ rc=$?
 if mount 2>/dev/null | grep ${tmpdir}/mnt ;then
     umount ${tmpdir}/mnt >/dev/null 2>&1
 fi
-losetup --detach ${device} >/dev/null 2>&1
+losetup -d ${device} >/dev/null 2>&1
 
 ## we don't catch anything for a umounting chroot as the device path is meaningless
 
