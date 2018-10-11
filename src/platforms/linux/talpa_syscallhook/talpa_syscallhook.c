@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright(C) 2004-2017 Sophos Limited, Oxford, England.
+ * Copyright(C) 2004-2018 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -31,6 +31,8 @@
 #include <linux/fs_struct.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
   #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,3)
+    /* ftrace symbols aren't available to modules, so turn this off */
+    #undef CONFIG_FTRACE_SYSCALLS
     #include <linux/syscalls.h>
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
     # include <linux/sched/task.h>
@@ -38,6 +40,9 @@
   #endif
   #include <linux/ptrace.h>
   #include <linux/moduleparam.h>
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+#include <asm/syscall.h>
 #endif
 #ifdef TALPA_NEED_MANUAL_RODATA
 #include <asm/page.h>
@@ -76,7 +81,7 @@ const char talpa_iface_version[] = "$TALPA_IFACE_VERSION:" TALPA_SYSCALLHOOK_IFA
 #define info(format, arg...) printk(KERN_INFO "talpa-syscallhook: " format "\n" , ## arg)
 #ifdef DEBUG
   #define dbg_start() printk(KERN_DEBUG "TALPA [" __FILE__ " ### %s] " , __FUNCTION__)
-  #define dbg_cont(format, arg...) printk(format,## arg)
+  #define dbg_cont(format, arg...) printk(format, ## arg)
   #define dbg_end() printk("\n")
   #define dbg(format, arg...) printk(KERN_DEBUG "TALPA [" __FILE__ " ### %s] " format "\n" , __FUNCTION__, ## arg)
 #else
@@ -107,37 +112,125 @@ const char talpa_iface_version[] = "$TALPA_IFACE_VERSION:" TALPA_SYSCALLHOOK_IFA
   #define MODULE_LICENSE(x) const char module_license[] = x
 #endif
 
-#ifdef CONFIG_X86_64
-  #undef TALPA_EXECVE_SUPPORT
+#ifndef __MAP
+/*
+ * __MAP - apply a macro to syscall arguments
+ * __MAP(n, m, t1, a1, t2, a2, ..., tn, an) will expand to
+ *    m(t1, a1), m(t2, a2), ..., m(tn, an)
+ * The first argument must be equal to the amount of type/name
+ * pairs given.  Note that this list of pairs (i.e. the arguments
+ * of __MAP starting at the third one) is in the same format as
+ * for SYSCALL_DEFINE<n>/COMPAT_SYSCALL_DEFINE<n>
+ */
+# define __MAP0(m,...)
+# define __MAP1(m,t,a,...) m(t,a)
+# define __MAP2(m,t,a,...) m(t,a), __MAP1(m,__VA_ARGS__)
+# define __MAP3(m,t,a,...) m(t,a), __MAP2(m,__VA_ARGS__)
+# define __MAP4(m,t,a,...) m(t,a), __MAP3(m,__VA_ARGS__)
+# define __MAP5(m,t,a,...) m(t,a), __MAP4(m,__VA_ARGS__)
+# define __MAP6(m,t,a,...) m(t,a), __MAP5(m,__VA_ARGS__)
+# define __MAP(n,...) __MAP##n(__VA_ARGS__)
 #endif
+
+#ifndef __SC_DECL
+# define __TALPA_SC_DECL(t, a) t a
+#else
+# define __TALPA_SC_DECL __SC_DECL
+#endif
+
+/* SYSCALL_DEFINE* only from kernel 2.6.27 onwards */
+#ifndef SYSCALL_DEFINEx
+# define SYSCALL_DEFINEx(x, name, ...) \
+    asmlinkage long sys##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))
+#endif
+#ifndef SYSCALL_DEFINE1
+# define SYSCALL_DEFINE0(name) asmlinkage long sys_##name(void)
+# define SYSCALL_DEFINE1(name, ...) SYSCALL_DEFINEx(1, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE2(name, ...) SYSCALL_DEFINEx(2, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE3(name, ...) SYSCALL_DEFINEx(3, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE4(name, ...) SYSCALL_DEFINEx(4, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE5(name, ...) SYSCALL_DEFINEx(5, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE6(name, ...) SYSCALL_DEFINEx(6, _##name, __VA_ARGS__)
+#endif
+
+// if using syscall wrapper
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0) && defined(CONFIG_X86_64)
+# define SYSCALL_FN(name) __x64_sys_##name
+# ifdef CONFIG_IA32_EMULATION
+#  define SYSCALL_IA32_FN(name) __ia32_sys_##name
+#  define SYSCALL_IA32_ORIG(name) \
+    static asmlinkage long __attribute__((unused)) (*orig32_##name)(const struct pt_regs *regs);
+#  define DO_IA32_ORIG(name) \
+    if (current->thread_info.status & TS_COMPAT)\
+        return orig32_##name(&regs);
+# else
+#  define SYSCALL_IA32_ORIG(name)
+#  define DO_IA32_ORIG(name)
+# endif
+# define SYSCALL_ORIGx(x, name, ...) \
+    static asmlinkage long (*orig_##name)(const struct pt_regs *regs);\
+    SYSCALL_IA32_ORIG(name)\
+    __diag_push();\
+    __diag_ignore(GCC, 8, "-Wattribute-alias", \
+        "Type aliasing is used to sanitize syscall arguments");\
+    static long __orig_##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))\
+        __attribute__((alias(__stringify(__origl_##name))));\
+    static long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__));\
+    static long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__))\
+    {\
+        struct pt_regs regs;\
+        unsigned long args[] = { __MAP(x, __SC_ARGS, __VA_ARGS__) };\
+        syscall_set_arguments(current, &regs, 0, x, args);\
+        __MAP(x,__SC_TEST,__VA_ARGS__);\
+        DO_IA32_ORIG(name)\
+        return orig_##name(&regs);\
+    }\
+    __diag_pop();
+# define CALL_ORIGx(x, name, ...) __##name(__VA_ARGS__)
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0) */
+# define SYSCALL_FN(name) sys_##name
+# ifdef CONFIG_IA32_EMULATION
+#  define SYSCALL_IA32_FN(name) sys_##name
+#  define SYSCALL_IA32_ORIG(x, name, ...) \
+    static asmlinkage long __attribute__((unused)) (*orig32_##name)(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__));
+# else
+#  define SYSCALL_IA32_ORIG(x, name, ...)
+# endif
+# define SYSCALL_ORIGx(x, name, ...) \
+    SYSCALL_IA32_ORIG(x, name, __VA_ARGS__)\
+    static asmlinkage long (*orig_##name)(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))
+# define CALL_ORIGx(x, name, ...) name(__VA_ARGS__)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0) */
+
+#define CALL_ORIG0(name, ...) CALL_ORIGx(0, name, __VA_ARGS__)
+#define CALL_ORIG1(name, ...) CALL_ORIGx(1, name, __VA_ARGS__)
+#define CALL_ORIG2(name, ...) CALL_ORIGx(2, name, __VA_ARGS__)
+#define CALL_ORIG3(name, ...) CALL_ORIGx(3, name, __VA_ARGS__)
+#define CALL_ORIG4(name, ...) CALL_ORIGx(4, name, __VA_ARGS__)
+#define CALL_ORIG5(name, ...) CALL_ORIGx(5, name, __VA_ARGS__)
+#define CALL_ORIG6(name, ...) CALL_ORIGx(6, name, __VA_ARGS__)
+
+#define SYSCALL_ORIG0(name, ...) SYSCALL_ORIGx(0, name, __VA_ARGS__)
+#define SYSCALL_ORIG1(name, ...) SYSCALL_ORIGx(1, name, __VA_ARGS__)
+#define SYSCALL_ORIG2(name, ...) SYSCALL_ORIGx(2, name, __VA_ARGS__)
+#define SYSCALL_ORIG3(name, ...) SYSCALL_ORIGx(3, name, __VA_ARGS__)
+#define SYSCALL_ORIG4(name, ...) SYSCALL_ORIGx(4, name, __VA_ARGS__)
+#define SYSCALL_ORIG5(name, ...) SYSCALL_ORIGx(5, name, __VA_ARGS__)
+#define SYSCALL_ORIG6(name, ...) SYSCALL_ORIGx(6, name, __VA_ARGS__)
 
 
 static atomic_t usecnt = ATOMIC_INIT(0);
 static struct talpa_syscall_operations* interceptor;
 static DECLARE_WAIT_QUEUE_HEAD(unregister_wait);
 
-static asmlinkage long (*orig_open)(const char* filename, int flags, int mode);
-static asmlinkage long (*orig_close)(unsigned int fd);
-static asmlinkage long (*orig_uselib)(const char* library);
-#ifdef TALPA_EXECVE_SUPPORT
-static asmlinkage int (*orig_execve)(struct pt_regs regs);
+SYSCALL_ORIG3(open, const char __user *, filename, int, flags, int, mode);
+SYSCALL_ORIG1(close, unsigned int, fd);
+SYSCALL_ORIG1(uselib, const char __user *, library);
+SYSCALL_ORIG5(mount, char __user *, dev_name, char __user *, dir_name, char __user *, type, unsigned long, flags, void __user *, data);
+#if defined CONFIG_X86 && (!defined CONFIG_X86_64 || CONFIG_IA32_EMULATION)
+SYSCALL_ORIG1(umount, char __user *, name);
 #endif
-static asmlinkage long (*orig_mount)(char* dev_name, char* dir_name, char* type, unsigned long flags, void* data);
-#if defined CONFIG_X86 && !defined CONFIG_X86_64
-static asmlinkage long (*orig_umount)(char* name);
-#endif
-static asmlinkage long (*orig_umount2)(char* name, int flags);
-
-#ifdef CONFIG_IA32_EMULATION
-static asmlinkage long (*orig_open_32)(const char* filename, int flags, int mode);
-static asmlinkage long (*orig_close_32)(unsigned int fd);
-  #ifdef CONFIG_IA32_AOUT
-static asmlinkage long (*orig_uselib_32)(const char* library);
-  #endif
-static asmlinkage long (*orig_mount_32)(char* dev_name, char* dir_name, char* type, unsigned long flags, void* data);
-static asmlinkage long (*orig_umount_32)(char* name);
-static asmlinkage long (*orig_umount2_32)(char* name, int flags);
-#endif
+SYSCALL_ORIG2(umount2, char __user *, name, int, flags);
 
 #ifdef TALPA_SHADOW_MAP
 static void *talpa_syscallhook_unro(void *addr, size_t len, int rw);
@@ -150,15 +243,12 @@ static unsigned int check_table(void);
  * o = open
  * c = close
  * l = uselib
- * e = execve
+ * e = execve (no longer supported)
  * m = mount
  * u = umount
  */
-#ifdef TALPA_EXECVE_SUPPORT
-static char *hook_mask = "oclemu";
-#else
+
 static char *hook_mask = "oclmu";
-#endif
 
 #ifdef TALPA_HIDDEN_SYSCALLS
   #ifdef TALPA_SYSCALL_TABLE
@@ -399,15 +489,15 @@ void *talpa_syscallhook_poke(void *addr, void *val)
  * Hooks
  */
 
-static asmlinkage long talpa_open(const char* filename, int flags, int mode)
+
+SYSCALL_DEFINE3(talpa_open, const char __user *, filename, int, flags, int, mode)
 {
     struct talpa_syscall_operations* ops;
     int fd;
 
-
     atomic_inc(&usecnt);
 
-    fd = orig_open(filename, flags, mode);
+    fd = CALL_ORIG3(orig_open, filename, flags, mode);
 
     if ( unlikely( fd < 0 ) )
     {
@@ -424,7 +514,7 @@ static asmlinkage long talpa_open(const char* filename, int flags, int mode)
         err = ops->open_post(fd);
         if ( unlikely ( err < 0 ) )
         {
-            orig_close(fd);
+            CALL_ORIG1(orig_close, fd);
             fd = err;
         }
     }
@@ -439,7 +529,7 @@ out:
     return fd;
 }
 
-static asmlinkage long talpa_close(unsigned int fd)
+SYSCALL_DEFINE1(talpa_close, unsigned int, fd)
 {
     struct talpa_syscall_operations* ops;
     int err;
@@ -454,7 +544,7 @@ static asmlinkage long talpa_close(unsigned int fd)
         ops->close_pre(fd);
     }
 
-    err = orig_close(fd);
+    err = CALL_ORIG1(orig_close, fd);
 
     if ( unlikely( atomic_dec_and_test(&usecnt) != 0 ) )
     {
@@ -465,7 +555,7 @@ static asmlinkage long talpa_close(unsigned int fd)
     return err;
 }
 
-static asmlinkage long talpa_uselib(const char* library)
+SYSCALL_DEFINE1(talpa_uselib, const char __user *, library)
 {
     struct talpa_syscall_operations* ops;
     int err = 0;
@@ -483,7 +573,7 @@ static asmlinkage long talpa_uselib(const char* library)
         }
     }
 
-    err = orig_uselib(library);
+    err = CALL_ORIG1(orig_uselib, library);
 
 out:
     if ( unlikely( atomic_dec_and_test(&usecnt) != 0 ) )
@@ -495,137 +585,11 @@ out:
     return err;
 }
 
-/* This is a original sys_execve with talpa code injected */
-#ifdef TALPA_EXECVE_SUPPORT
-  #ifdef CONFIG_X86_64
-static asmlinkage long talpa_execve(char __user * name,
-                                    char __user * __user *argv,
-                                    char __user * __user *envp,
-                                    struct pt_regs regs)
-{
-    long error;
-    TALPA_FILENAME_T * filename;
-    struct talpa_syscall_operations* ops;
-    #ifdef TALPA_HIDDEN_EXECVE
-    long (*talpa_do_execve)(char *filename, char **argv, char **envp, struct pt_regs * regs) = (long (*)(char *filename, char **argv, char **envp, struct pt_regs * regs))TALPA_HIDDEN_EXECVE_ADDRESS;
-    #else
-    long (*talpa_do_execve)(char *filename, char **argv, char **envp, struct pt_regs * regs) = &do_execve;
-    #endif
-
-    atomic_inc(&usecnt);
-    ops = interceptor;
-
-    filename = talpa_getname(name);
-    error = PTR_ERR(filename);
-    if (IS_ERR(filename))
-        goto out;
-
-    if ( likely( ops != NULL ) )
-    {
-        error = ops->execve_pre(filename);
-        if ( unlikely( error < 0 ))
-        {
-            goto out2;
-        }
-    }
-
-    error = talpa_do_execve(name, argv, envp, &regs);
-    if (error == 0)
-    {
-        task_lock(current);
-        #ifdef PT_DTRACE
-        current->ptrace &= ~PT_DTRACE;
-        #endif
-        task_unlock(current);
-    }
-
-out2:
-    talpa_putname(filename);
-out:
-    if ( unlikely( atomic_dec_and_test(&usecnt) != 0 ) )
-    {
-        wake_up(&unregister_wait);
-    }
-
-    prevent_tail_call(error);
-    return error;
-}
-  #elif defined CONFIG_X86
-static asmlinkage int talpa_execve(struct pt_regs regs)
-{
-    int error;
-    TALPA_FILENAME_T * filename;
-    struct talpa_syscall_operations* ops;
-    #ifdef TALPA_HIDDEN_EXECVE
-    int (*talpa_do_execve)(char *filename, char **argv, char **envp, struct pt_regs * regs) = (int (*)(char *filename, char **argv, char **envp, struct pt_regs * regs))TALPA_HIDDEN_EXECVE_ADDRESS;
-    #else
-    int (*talpa_do_execve)(char *filename, char **argv, char **envp, struct pt_regs * regs) = &do_execve;
-    #endif
-
-    atomic_inc(&usecnt);
-    ops = interceptor;
-
-    #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
-    filename = talpa_getname((char *) regs.bx);
-    #else
-    filename = talpa_getname((char *) regs.ebx);
-    #endif
-    error = PTR_ERR(filename);
-    if (IS_ERR(filename))
-        goto out;
-
-    if ( likely( ops != NULL ) )
-    {
-        error = ops->execve_pre(filename);
-        if ( unlikely( error < 0 ))
-        {
-            goto out2;
-        }
-    }
-
-    #ifdef TALPA_HAS_STRUCT_FILENAME
-    error = talpa_do_execve((char *) regs.bx, (char **) regs.cx, (char **) regs.dx, &regs);
-    #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
-    error = talpa_do_execve(filename, (char **) regs.cx, (char **) regs.dx, &regs);
-    #else
-    error = talpa_do_execve(filename, (char **) regs.ecx, (char **) regs.edx, &regs);
-    #endif
-    if (error == 0)
-    {
-        task_lock(current);
-        #ifdef PT_DTRACE
-        current->ptrace &= ~PT_DTRACE;
-        #endif
-        task_unlock(current);
-        #ifdef TIF_IRET
-        /* Make sure we don't return using sysenter.. */
-        set_thread_flag(TIF_IRET);
-        #endif
-    }
-
-out2:
-    talpa_putname(filename);
-out:
-    if ( unlikely( atomic_dec_and_test(&usecnt) != 0 ) )
-    {
-        wake_up(&unregister_wait);
-    }
-
-    prevent_tail_call(error);
-    return error;
-}
-  #else
-    #warning "execve is not implemented on this architecture!"
-  #endif
-#else
-/* This is not a #warning, as some kernels compile modules with -Werror */
-#endif
-
-static asmlinkage long talpa_mount(char __user *dev_name,
-                                   char __user *dir_name,
-                                   char __user *type,
-                                   unsigned long flags,
-                                   void __user *data)
+SYSCALL_DEFINE5(talpa_mount, char __user *, dev_name,
+                             char __user *, dir_name,
+                             char __user *, type,
+                             unsigned long, flags,
+                             void __user *, data)
 {
     struct talpa_syscall_operations* ops;
     int err, err2;
@@ -644,14 +608,14 @@ static asmlinkage long talpa_mount(char __user *dev_name,
         }
     }
 
-    err = orig_mount(dev_name, dir_name, type, flags, data);
+    err = CALL_ORIG5(orig_mount, dev_name, dir_name, type, flags, data);
 
     if ( likely( ops != NULL ) )
     {
         err2 = ops->mount_post(err, dev_name, dir_name, type, flags, data);
         if ( unlikely( err2 != 0 ) )
         {
-            orig_umount2(dir_name, 0);
+            CALL_ORIG2(orig_umount2, dir_name, 0);
             err = err2;
         }
     }
@@ -666,7 +630,7 @@ out:
 }
 
 #if defined CONFIG_X86 && (!defined CONFIG_X86_64 || CONFIG_IA32_EMULATION)
-static asmlinkage long talpa_umount(char* name)
+SYSCALL_DEFINE1(talpa_umount, char __user *, name)
 {
     struct talpa_syscall_operations* ops;
     int err;
@@ -682,11 +646,7 @@ static asmlinkage long talpa_umount(char* name)
         ops->umount_pre(name, 0, &ctx);
     }
 
-  #ifdef CONFIG_IA32_EMULATION
-    err = orig_umount_32(name);
-  #else
-    err = orig_umount(name);
-  #endif
+    err = CALL_ORIG1(orig_umount, name);
 
     if ( likely( ops != NULL ) )
     {
@@ -703,7 +663,7 @@ static asmlinkage long talpa_umount(char* name)
 }
 #endif
 
-static asmlinkage long talpa_umount2(char* name, int flags)
+SYSCALL_DEFINE2(talpa_umount2, char __user *, name, int, flags)
 {
     struct talpa_syscall_operations* ops;
     int err;
@@ -719,7 +679,7 @@ static asmlinkage long talpa_umount2(char* name, int flags)
         ops->umount_pre(name, flags, &ctx);
     }
 
-    err = orig_umount2(name, flags);
+    err = CALL_ORIG2(orig_umount2, name, flags);
 
     if ( likely( ops != NULL ) )
     {
@@ -752,7 +712,7 @@ static void ** talpa_ia32_sys_call_table;
    patched 2.4 (x86) kernels. */
 
   #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
-static void *lower_bound = 0;
+static void *lower_bound = NULL;
   #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
     #include <linux/kallsyms.h>
 static void *lower_bound = &kernel_thread;
@@ -777,7 +737,7 @@ static void **get_start_addr(void)
   #endif
 #endif
     dbg("Syscall searching not available for 2.6.39+");
-    return (void **)0;
+    return NULL;
 }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
 static void **get_start_addr(void)
@@ -825,7 +785,7 @@ static void **get_start_addr_ia32(void)
   #endif
 #endif
     dbg("Syscall searching not available for 2.6.39+");
-    return (void **)0;
+    return NULL;
 }
 #else /* ! LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,39) */
 static void **get_start_addr_ia32(void)
@@ -882,7 +842,7 @@ static int verify(void **p, const unsigned int unique_syscalls[], const unsigned
         }
     }
 
-    /* Check that all different sysmte calls are really different */
+    /* Check that all different system calls are really different */
     for ( i = 0; i < num_unique_syscalls; i++ )
     {
         for ( s = 0; s < 223; s++ )
@@ -924,25 +884,27 @@ static void **talpa_find_syscall_table(void **ptr, const unsigned int unique_sys
     void **limit = ptr + 0xa000;
     void **table = NULL;
 #ifdef DEBUG
-    unsigned int i;
-
-    dbg_start();
-    dbg_cont("unique: ");
-    for ( i = 0; i < num_unique_syscalls; i++ )
     {
-        dbg_cont("%u ", unique_syscalls[i]);
-    }
-    dbg_end();
+        unsigned int i;
 
-    dbg_start();
-    dbg_cont("zapped: ");
-    for ( i = 0; i < num_zapped_syscalls; i++ )
-    {
-        dbg_cont("%u ", zapped_syscalls[i]);
-    }
-    dbg_end();
+        dbg_start();
+        dbg_cont("unique: ");
+        for ( i = 0; i < num_unique_syscalls; i++ )
+        {
+            dbg_cont("%u ", unique_syscalls[i]);
+        }
+        dbg_end();
 
-    dbg("scan from 0x%p to 0x%p", ptr, limit);
+        dbg_start();
+        dbg_cont("zapped: ");
+        for ( i = 0; i < num_zapped_syscalls; i++ )
+        {
+            dbg_cont("%u ", zapped_syscalls[i]);
+        }
+        dbg_end();
+
+        dbg("scan from 0x%p to 0x%p", ptr, limit);
+    }
 #endif
 
     for ( ; ptr < limit && table == NULL; ptr++ )
@@ -1158,7 +1120,7 @@ static void **look_around(void **p, const unsigned int unique_syscalls[], const 
 
         if ( ok && verify((void **)start_addr, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, symlookup) )
         {
-            info("At offset %ld", (long int)(start_addr - orig_addr));
+            info("At offset %zd", start_addr - orig_addr);
             return (void **)start_addr;
         }
     }
@@ -1179,7 +1141,7 @@ static void **find_around(void **p, const unsigned int unique_syscalls[], const 
         res = talpa_find_syscall_table((void **)start_addr, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, symlookup);
         if ( res )
         {
-            info("Found with offset %ld", (long int)(start_addr - orig_addr));
+            info("Found with offset %zd", start_addr - orig_addr);
             return res;
         }
     }
@@ -1368,22 +1330,19 @@ static void save_originals(void)
 #ifdef CONFIG_X86
     orig_open = talpa_sys_call_table[__NR_open];
     orig_close = talpa_sys_call_table[__NR_close];
-  #ifdef TALPA_EXECVE_SUPPORT
-    orig_execve = talpa_sys_call_table[__NR_execve];
-  #endif
     orig_uselib = talpa_sys_call_table[__NR_uselib];
     orig_mount = talpa_sys_call_table[__NR_mount];
   #if defined CONFIG_X86_64
     orig_umount2 = talpa_sys_call_table[__NR_umount2];
     #ifdef CONFIG_IA32_EMULATION
-    orig_open_32 = talpa_ia32_sys_call_table[__NR_open_ia32];
-    orig_close_32 = talpa_ia32_sys_call_table[__NR_close_ia32];
+    orig32_open = talpa_ia32_sys_call_table[__NR_open_ia32];
+    orig32_close = talpa_ia32_sys_call_table[__NR_close_ia32];
       #ifdef CONFIG_IA32_AOUT
-    orig_uselib_32 = talpa_ia32_sys_call_table[__NR_uselib_ia32];
+    orig32_uselib = talpa_ia32_sys_call_table[__NR_uselib_ia32];
       #endif
-    orig_mount_32 = talpa_ia32_sys_call_table[__NR_mount_ia32];
-    orig_umount_32 = talpa_ia32_sys_call_table[__NR_umount_ia32];
-    orig_umount2_32 = talpa_ia32_sys_call_table[__NR_umount2_ia32];
+    orig32_mount = talpa_ia32_sys_call_table[__NR_mount_ia32];
+    orig32_umount = talpa_ia32_sys_call_table[__NR_umount_ia32];
+    orig32_umount2 = talpa_ia32_sys_call_table[__NR_umount2_ia32];
     #endif
   #else
     orig_umount = talpa_sys_call_table[__NR_umount];
@@ -1400,58 +1359,56 @@ static void patch_table(void)
 {
     if ( strchr(hook_mask, 'o') )
     {
-        patch_syscall(talpa_sys_call_table, __NR_open, talpa_open);
+        dbg("Patching open");
+        patch_syscall(talpa_sys_call_table, __NR_open, SYSCALL_FN(talpa_open));
 #ifdef CONFIG_IA32_EMULATION
-        patch_syscall(talpa_ia32_sys_call_table, __NR_open_ia32, talpa_open);
+        patch_syscall(talpa_ia32_sys_call_table, __NR_open_ia32, SYSCALL_IA32_FN(talpa_open));
 #endif
     }
 
     if ( strchr(hook_mask, 'c') )
     {
-        patch_syscall(talpa_sys_call_table, __NR_close, talpa_close);
+        dbg("Patching close");
+        patch_syscall(talpa_sys_call_table, __NR_close, SYSCALL_FN(talpa_close));
 #ifdef CONFIG_IA32_EMULATION
-        patch_syscall(talpa_ia32_sys_call_table, __NR_close_ia32, talpa_close);
+        patch_syscall(talpa_ia32_sys_call_table, __NR_close_ia32, SYSCALL_IA32_FN(talpa_close));
 #endif
     }
 
     if ( strchr(hook_mask, 'l') )
     {
-        patch_syscall(talpa_sys_call_table, __NR_uselib, talpa_uselib);
+        dbg("Patching uselib");
+        patch_syscall(talpa_sys_call_table, __NR_uselib, SYSCALL_FN(talpa_uselib));
 #if defined CONFIG_IA32_EMULATION && defined CONFIG_IA32_AOUT
-        patch_syscall(talpa_ia32_sys_call_table, __NR_uselib_ia32, talpa_uselib);
+        patch_syscall(talpa_ia32_sys_call_table, __NR_uselib_ia32, SYSCALL_IA32_FN(talpa_uselib));
 #endif
     }
 
     if ( strchr(hook_mask, 'm') )
     {
-        patch_syscall(talpa_sys_call_table, __NR_mount, talpa_mount);
+        dbg("Patching mount");
+        patch_syscall(talpa_sys_call_table, __NR_mount, SYSCALL_FN(talpa_mount));
 #ifdef CONFIG_IA32_EMULATION
-        patch_syscall(talpa_ia32_sys_call_table, __NR_mount_ia32, talpa_mount);
+        patch_syscall(talpa_ia32_sys_call_table, __NR_mount_ia32, SYSCALL_IA32_FN(talpa_mount));
 #endif
     }
 
     if ( strchr(hook_mask, 'u') )
     {
+        dbg("Patching umount");
 #if defined CONFIG_X86
  #if defined CONFIG_X86_64
-        patch_syscall(talpa_sys_call_table, __NR_umount2, talpa_umount2);
+        patch_syscall(talpa_sys_call_table, __NR_umount2, SYSCALL_FN(talpa_umount2));
  #else
-        patch_syscall(talpa_sys_call_table, __NR_umount, talpa_umount);
-        patch_syscall(talpa_sys_call_table, __NR_umount2, talpa_umount2);
+        patch_syscall(talpa_sys_call_table, __NR_umount, SYSCALL_FN(talpa_umount));
+        patch_syscall(talpa_sys_call_table, __NR_umount2, SYSCALL_FN(talpa_umount2));
  #endif
 #endif
 #ifdef CONFIG_IA32_EMULATION
-        patch_syscall(talpa_ia32_sys_call_table, __NR_umount_ia32, talpa_umount);
-        patch_syscall(talpa_ia32_sys_call_table, __NR_umount2_ia32, talpa_umount2);
+        patch_syscall(talpa_ia32_sys_call_table, __NR_umount_ia32, SYSCALL_IA32_FN(talpa_umount));
+        patch_syscall(talpa_ia32_sys_call_table, __NR_umount2_ia32, SYSCALL_IA32_FN(talpa_umount2));
 #endif
     }
-
-#ifdef TALPA_EXECVE_SUPPORT
-    if ( strchr(hook_mask, 'e') )
-    {
-        patch_syscall(talpa_sys_call_table, __NR_execve, talpa_execve);
-    }
-#endif
 }
 
 static unsigned int check_table(void)
@@ -1461,17 +1418,17 @@ static unsigned int check_table(void)
 
     if ( strchr(hook_mask, 'o') )
     {
-        if ( talpa_sys_call_table[__NR_open] != talpa_open &&
+        if ( talpa_sys_call_table[__NR_open] != SYSCALL_FN(talpa_open) &&
              talpa_sys_call_table[__NR_open] != orig_open)
         {
             warn("open() is patched by someone else!");
             rc = 1;
         }
 #ifdef CONFIG_IA32_EMULATION
-        if ( talpa_ia32_sys_call_table[__NR_open_ia32] != talpa_open &&
-             talpa_ia32_sys_call_table[__NR_open_ia32] != orig_open_32)
+        if ( talpa_ia32_sys_call_table[__NR_open_ia32] != SYSCALL_IA32_FN(talpa_open) &&
+             talpa_ia32_sys_call_table[__NR_open_ia32] != orig32_open)
         {
-            warn("ia32_open() is patches by someone else!");
+            warn("ia32_open() is patched by someone else!");
             rc = 1;
         }
 #endif
@@ -1479,15 +1436,15 @@ static unsigned int check_table(void)
 
     if ( strchr(hook_mask, 'c') )
     {
-        if ( talpa_sys_call_table[__NR_close] != talpa_close &&
+        if ( talpa_sys_call_table[__NR_close] != SYSCALL_FN(talpa_close) &&
              talpa_sys_call_table[__NR_close] != orig_close)
         {
             warn("close() is patched by someone else!");
             rc = 1;
         }
 #ifdef CONFIG_IA32_EMULATION
-        if ( talpa_ia32_sys_call_table[__NR_close_ia32] != talpa_close &&
-             talpa_ia32_sys_call_table[__NR_close_ia32] != orig_close_32)
+        if ( talpa_ia32_sys_call_table[__NR_close_ia32] != SYSCALL_IA32_FN(talpa_close) &&
+             talpa_ia32_sys_call_table[__NR_close_ia32] != orig32_close)
         {
             warn("ia32_close() is patched by someone else!");
             rc = 1;
@@ -1497,15 +1454,15 @@ static unsigned int check_table(void)
 
     if ( strchr(hook_mask, 'l') )
     {
-        if ( talpa_sys_call_table[__NR_uselib] != talpa_uselib &&
+        if ( talpa_sys_call_table[__NR_uselib] != SYSCALL_FN(talpa_uselib) &&
              talpa_sys_call_table[__NR_uselib] != orig_uselib)
         {
             warn("uselib() is patched by someone else!");
             rc = 1;
         }
 #if defined CONFIG_IA32_EMULATION && defined CONFIG_IA32_AOUT
-        if ( talpa_ia32_sys_call_table[__NR_uselib_ia32] != talpa_uselib &&
-             talpa_ia32_sys_call_table[__NR_uselib_ia32] != orig_uselib_32)
+        if ( talpa_ia32_sys_call_table[__NR_uselib_ia32] != SYSCALL_IA32_FN(talpa_uselib) &&
+             talpa_ia32_sys_call_table[__NR_uselib_ia32] != orig32_uselib)
         {
             warn("ia32_uselib() is patched by someone else!");
             rc = 1;
@@ -1515,15 +1472,15 @@ static unsigned int check_table(void)
 
     if ( strchr(hook_mask, 'm') )
     {
-        if ( talpa_sys_call_table[__NR_mount] != talpa_mount &&
+        if ( talpa_sys_call_table[__NR_mount] != SYSCALL_FN(talpa_mount) &&
              talpa_sys_call_table[__NR_mount] != orig_mount )
         {
             warn("mount() is patched by someone else!");
             rc = 1;
         }
 #ifdef CONFIG_IA32_EMULATION
-        if ( talpa_ia32_sys_call_table[__NR_mount_ia32] != talpa_mount &&
-             talpa_ia32_sys_call_table[__NR_mount_ia32] != orig_mount_32)
+        if ( talpa_ia32_sys_call_table[__NR_mount_ia32] != SYSCALL_IA32_FN(talpa_mount) &&
+             talpa_ia32_sys_call_table[__NR_mount_ia32] != orig32_mount)
         {
             warn("ia32_mount() is patched by someone else!");
             rc = 1;
@@ -1535,20 +1492,20 @@ static unsigned int check_table(void)
     {
 #if defined CONFIG_X86
  #if defined CONFIG_X86_64
-        if ( talpa_sys_call_table[__NR_umount2] != talpa_umount2 &&
+        if ( talpa_sys_call_table[__NR_umount2] != SYSCALL_FN(talpa_umount2) &&
              talpa_sys_call_table[__NR_umount2] != orig_umount2)
         {
             warn("umount2() is patched by someone else!");
             rc = 1;
         }
  #else
-        if ( talpa_sys_call_table[__NR_umount] != talpa_umount &&
+        if ( talpa_sys_call_table[__NR_umount] != SYSCALL_FN(talpa_umount) &&
              talpa_sys_call_table[__NR_umount] != orig_umount)
         {
             warn("umount() is patched by someone else!");
             rc = 1;
         }
-        if ( talpa_sys_call_table[__NR_umount2] != talpa_umount2 &&
+        if ( talpa_sys_call_table[__NR_umount2] != SYSCALL_FN(talpa_umount2) &&
              talpa_sys_call_table[__NR_umount2] != orig_umount2)
         {
             warn("umount2() is patched by someone else!");
@@ -1557,32 +1514,20 @@ static unsigned int check_table(void)
  #endif
 #endif
 #ifdef CONFIG_IA32_EMULATION
-        if ( talpa_ia32_sys_call_table[__NR_umount_ia32] != talpa_umount &&
-             talpa_ia32_sys_call_table[__NR_umount_ia32] != orig_umount_32)
+        if ( talpa_ia32_sys_call_table[__NR_umount_ia32] != SYSCALL_IA32_FN(talpa_umount) &&
+             talpa_ia32_sys_call_table[__NR_umount_ia32] != orig32_umount)
         {
             warn("ia32_umount() is patched by someone else!");
             rc = 1;
         }
-        if ( talpa_ia32_sys_call_table[__NR_umount2_ia32] != talpa_umount2 &&
-             talpa_ia32_sys_call_table[__NR_umount2_ia32] != orig_umount2_32)
+        if ( talpa_ia32_sys_call_table[__NR_umount2_ia32] != SYSCALL_IA32_FN(talpa_umount2) &&
+             talpa_ia32_sys_call_table[__NR_umount2_ia32] != orig32_umount2)
         {
             warn("ia32_umount2() is patched by someone else!");
             rc = 1;
         }
 #endif
     }
-
-#ifdef TALPA_EXECVE_SUPPORT
-    if ( strchr(hook_mask, 'e') )
-    {
-        if ( talpa_sys_call_table[__NR_execve] != talpa_execve &&
-             talpa_sys_call_table[__NR_execve] != orig_execve)
-        {
-            warn("execve() is patched by someone else!");
-            rc = 1;
-        }
-    }
-#endif
 
     return rc;
 }
@@ -1592,22 +1537,19 @@ static void restore_table(void)
 #if defined CONFIG_X86
     patch_syscall(talpa_sys_call_table, __NR_open, orig_open);
     patch_syscall(talpa_sys_call_table, __NR_close, orig_close);
-  #ifdef TALPA_EXECVE_SUPPORT
-    patch_syscall(talpa_sys_call_table, __NR_execve, orig_execve);
-  #endif
     patch_syscall(talpa_sys_call_table, __NR_uselib, orig_uselib);
     patch_syscall(talpa_sys_call_table, __NR_mount, orig_mount);
   #if defined CONFIG_X86_64
     patch_syscall(talpa_sys_call_table, __NR_umount2, orig_umount2);
     #ifdef CONFIG_IA32_EMULATION
-    patch_syscall(talpa_ia32_sys_call_table, __NR_open_ia32, orig_open_32);
-    patch_syscall(talpa_ia32_sys_call_table, __NR_close_ia32, orig_close_32);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_open_ia32, orig32_open);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_close_ia32, orig32_close);
       #ifdef CONFIG_IA32_AOUT
-    patch_syscall(talpa_ia32_sys_call_table, __NR_uselib_ia32, orig_uselib_32);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_uselib_ia32, orig32_uselib);
       #endif
-    patch_syscall(talpa_ia32_sys_call_table, __NR_mount_ia32, orig_mount_32);
-    patch_syscall(talpa_ia32_sys_call_table, __NR_umount_ia32, orig_umount_32);
-    patch_syscall(talpa_ia32_sys_call_table, __NR_umount2_ia32, orig_umount2_32);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_mount_ia32, orig32_mount);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_umount_ia32, orig32_umount);
+    patch_syscall(talpa_ia32_sys_call_table, __NR_umount2_ia32, orig32_umount2);
     #endif
   #else
     patch_syscall(talpa_sys_call_table, __NR_umount, orig_umount);
@@ -1700,7 +1642,7 @@ static void __exit talpa_syscallhook_exit(void)
        has modified the syscall table after us. Therefore we
        will check for that and sleep until the situation resolves.
        There isn't really a perfect solution in these sorts of
-       unsupported oprations so it is better to hang here than
+       unsupported operations so it is better to hang here than
        to cause system instability in any way.
        The best thing would be to leave this module loaded forever.
     */
@@ -1781,17 +1723,13 @@ MODULE_PARM(rodata_end, "l");
 
 #endif /* >= 2.6.0 */
 
-#ifdef TALPA_EXECVE_SUPPORT
-MODULE_PARM_DESC(hook_mask, "list of system calls to hook where o=open, c=close, l=uselib, e=execve, m=mount and u=umount (default: oclemu)");
-#else
 MODULE_PARM_DESC(hook_mask, "list of system calls to hook where o=open, c=close, l=uselib, m=mount and u=umount (default: oclmu)");
-#endif
 #ifdef TALPA_HIDDEN_SYSCALLS
 MODULE_PARM_DESC(syscall_table, "system call table address");
   #ifdef CONFIG_IA32_EMULATION
 MODULE_PARM_DESC(syscall32_table, "ia32 emulation system call table address");
   #endif
-MODULE_PARM_DESC(force, "ignore system call table verfication results");
+MODULE_PARM_DESC(force, "ignore system call table verification results");
 #endif
 #ifdef TALPA_NEED_MANUAL_RODATA
 MODULE_PARM_DESC(rodata_start, "start of read-only data section");

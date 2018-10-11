@@ -743,9 +743,6 @@ AC_MSG_RESULT([${kern_arch}])
 ${RM} -f tests/configure/kernarch
 if test "$kern_arch" = "unsupported"; then
     AC_MSG_ERROR([kernel architecture not supported])
-else
-    # Set here but will be cleared below if recent 2.6 kernel is detected
-    AC_SUBST(execve,"-DTALPA_EXECVE_SUPPORT")
 fi
 
 AC_MSG_CHECKING([for kernel version code])
@@ -872,6 +869,37 @@ else
     fi
 fi
 
+AM_CONDITIONAL(M32_BUILD, test 1 -eq 0)
+AM_CONDITIONAL(MX32_BUILD, test 1 -eq 0)
+march=`${UNAME} -m`
+if test "$march" = "x86_64"; then
+    # Check for compatibility targets
+    AC_MSG_CHECKING([for -m32 build])
+    if ${CC} -m32 ${srcdir}/tests/configure/mount.c -o mount_32 1>/dev/null 2>&1; then
+        ./mount_32
+        if test $rc -eq 0; then
+            AC_MSG_RESULT([works])
+            AM_CONDITIONAL(M32_BUILD, test 1 -eq 1)
+        else
+            AC_MSG_RESULT([cannot execute])
+        fi
+    else
+        AC_MSG_RESULT([cannot compile])
+    fi
+    AC_MSG_CHECKING([for -mx32 build])
+    if ${CC} -mx32 ${srcdir}/tests/configure/mount.c -o mount_x32 1>/dev/null 2>&1; then
+        ./mount_x32
+        if test $rc -eq 0; then
+            AC_MSG_RESULT([works])
+            AM_CONDITIONAL(MX32_BUILD, test 1 -eq 1)
+        else
+            AC_MSG_RESULT([cannot execute])
+        fi
+    else
+        AC_MSG_RESULT([cannot compile])
+    fi
+fi
+
 # Try to find the System.map file
 AC_MSG_CHECKING([for System.map])
 if test "$auto_system_map" = "yes"; then
@@ -889,7 +917,7 @@ AC_MSG_CHECKING([for printk address])
 tmp=`${EGREP} " printk\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
 if test "$tmp" != ""; then
     AC_MSG_RESULT([0x$tmp])
-    AC_SUBST(printkaddr, "-DTALPA_PRINTK_ADDR=0x$tmp")
+    AC_SUBST(printkaddr, "-DTALPA_PRINTK_ADDR=0x${tmp}UL")
 else
     AC_MSG_ERROR([not found])
 fi
@@ -899,7 +927,7 @@ AC_MSG_CHECKING([for do_truncate address])
 tmp=`${EGREP} " do_truncate\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
 if test "$tmp" != ""; then
     AC_MSG_RESULT([0x$tmp])
-    AC_SUBST(dotruncateaddr, "-DTALPA_DOTRUNCATE_ADDR=0x$tmp")
+    AC_SUBST(dotruncateaddr, "-DTALPA_DOTRUNCATE_ADDR=0x${tmp}UL")
 else
     AC_MSG_ERROR([not found])
 fi
@@ -980,6 +1008,18 @@ if test $hitcnt -gt 1 ; then
     AC_MSG_ERROR([ambiguous])
 fi
 
+# Check for vfs_readdir (only for kernels older than 3.11.0)
+if test $((kern_version_code)) -lt 199424; then
+    TALPA_LOCATE_HEADER(linux/fs.h, $kernelhdrspath)
+    AC_MSG_CHECKING([for vfs_readdir])
+    ${EGREP} vfs_readdir $TALPA_HEADER_LOCATION/linux/fs.h >/dev/null 2>&1
+    if test $? -eq 0; then
+        AC_SUBST(vfsreaddir, "-DTALPA_VFSREADDIR")
+        AC_MSG_RESULT([present])
+    else
+        AC_MSG_RESULT([not present])
+    fi
+fi
 
 # Check for snprintf only for kernels older than 2.4.10
 if test $((kern_version_code)) -lt 132106; then
@@ -1042,7 +1082,7 @@ if test "$notasklistlock" != ""; then
     tasklist_lock_addr=`${EGREP} " tasklist_lock\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
     if test "$tasklist_lock_addr" != ""; then
         AC_MSG_RESULT([0x$tasklist_lock_addr])
-        AC_SUBST(notasklistlock, "$notasklistlock -DTALPA_TASKLIST_LOCK_ADDR=0x$tasklist_lock_addr")
+        AC_SUBST(notasklistlock, "$notasklistlock -DTALPA_TASKLIST_LOCK_ADDR=0x${tasklist_lock_addr}UL")
     else
         AC_MSG_ERROR([not found])
     fi
@@ -1079,7 +1119,7 @@ function find_syscall_table
 
         # If passed through environment do nothing since makefile will handle that
         if test "$TALPA_SYSCALL_TABLE" = "" -a "$TALPA_SYSCALL32_TABLE" = ""; then
-            FIND_SYSCALL_TABLE_RESULT="-DTALPA_SYSCALL_TABLE=0x${sys_call_table} -DTALPA_SYSCALL32_TABLE=0x${sys_call_table32}"
+            FIND_SYSCALL_TABLE_RESULT="-DTALPA_SYSCALL_TABLE=0x${sys_call_table}UL -DTALPA_SYSCALL32_TABLE=0x${sys_call_table32}UL"
             return 0
         fi
 
@@ -1087,7 +1127,7 @@ function find_syscall_table
     fi
 
     if test "$TALPA_SYSCALL_TABLE" = ""; then
-        FIND_SYSCALL_TABLE_RESULT="-DTALPA_SYSCALL_TABLE=0x${sys_call_table}"
+        FIND_SYSCALL_TABLE_RESULT="-DTALPA_SYSCALL_TABLE=0x${sys_call_table}UL"
         return 0
     fi
 
@@ -1173,7 +1213,7 @@ if test $((kern_version_code)) -ge 132608; then
             if test "$d_path_addr" != ""; then
                 CALLING_REAL_DPATH=1
                 AC_MSG_RESULT([0x$d_path_addr])
-                AC_SUBST(dpath, "$dpath -DTALPA_HAS_DPATH -DTALPA_HAS_DPATH_ADDR -DTALPA_DPATH_ADDR=0x$d_path_addr")
+                AC_SUBST(dpath, "$dpath -DTALPA_HAS_DPATH -DTALPA_HAS_DPATH_ADDR -DTALPA_DPATH_ADDR=0x${d_path_addr}UL")
             else
                 AC_MSG_ERROR([not found])
             fi
@@ -1231,7 +1271,7 @@ if test $((kern_version_code)) -ge 132608; then
         AC_SUBST(vfsmntlock, "-DTALPA_USE_VFSMOUNT_LOCK -DTALPA_VFSMOUNT_LG_BRLOCK")
     elif test x"$mount_lock" != x"" ; then
         AC_MSG_RESULT([vfsmount lock is mount_lock seqlock])
-        AC_SUBST(vfsmntlock, "-DTALPA_USE_MOUNT_LOCK -DTALPA_MOUNT_LOCK_ADDR=0x$mount_lock")
+        AC_SUBST(vfsmntlock, "-DTALPA_USE_MOUNT_LOCK -DTALPA_MOUNT_LOCK_ADDR=0x${mount_lock}UL")
     elif test x"$vfsmount_lock_lock" == x"" ; then
         AC_MSG_RESULT([vfsmount lock is spinlock])
         # Find vfsmnt_lock address
@@ -1239,7 +1279,7 @@ if test $((kern_version_code)) -ge 132608; then
         vfsmnt_lock_addr=`${EGREP} " vfsmount_lock\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
         if test "$vfsmnt_lock_addr" != ""; then
             AC_MSG_RESULT([0x$vfsmnt_lock_addr])
-            AC_SUBST(vfsmntlock, "-DTALPA_USE_VFSMOUNT_LOCK -DTALPA_VFSMOUNT_LOCK_ADDR=0x$vfsmnt_lock_addr")
+            AC_SUBST(vfsmntlock, "-DTALPA_USE_VFSMOUNT_LOCK -DTALPA_VFSMOUNT_LOCK_ADDR=0x${vfsmnt_lock_addr}UL")
         else
             AC_MSG_ERROR([not found])
         fi
@@ -1255,7 +1295,7 @@ if test $((kern_version_code)) -ge 132608; then
         if test x"$lookup_mnt_last_val" != x""
         then
             AC_MSG_RESULT([0x$lookup_mnt_last_val])
-            AC_SUBST(lookup_mnt_last, "-DTALPA_SHARED_MOUNTS -DTALPA_HAVE_LOOKUP_MNT_LAST -DTALPA__LOOKUP_MNT_LAST=0x$lookup_mnt_last_val")
+            AC_SUBST(lookup_mnt_last, "-DTALPA_SHARED_MOUNTS -DTALPA_HAVE_LOOKUP_MNT_LAST -DTALPA__LOOKUP_MNT_LAST=0x${lookup_mnt_last_val}UL")
         else
             AC_MSG_RESULT([not found])
             AC_MSG_CHECKING([for __lookup_mnt address])
@@ -1263,7 +1303,7 @@ if test $((kern_version_code)) -ge 132608; then
             if test x"$lookup_mnt_val" != x""
             then
                 AC_MSG_RESULT([0x$lookup_mnt_val])
-                AC_SUBST(lookup_mnt_last, "-DTALPA_SHARED_MOUNTS -DTALPA_HAVE_LOOKUP_MNT2 -DTALPA__LOOKUP_MNT=0x$lookup_mnt_val")
+                AC_SUBST(lookup_mnt_last, "-DTALPA_SHARED_MOUNTS -DTALPA_HAVE_LOOKUP_MNT2 -DTALPA__LOOKUP_MNT=0x${lookup_mnt_val}UL")
             else
                 AC_MSG_ERROR([not found])
             fi
@@ -1275,7 +1315,7 @@ if test $((kern_version_code)) -ge 132608; then
         if test x"$lookup_mnt_val" != x""
         then
             AC_MSG_RESULT([0x$lookup_mnt_val])
-            AC_SUBST(lookup_mnt_last, "-DTALPA_SHARED_MOUNTS -DTALPA_HAVE_LOOKUP_MNT -DTALPA__LOOKUP_MNT=0x$lookup_mnt_val")
+            AC_SUBST(lookup_mnt_last, "-DTALPA_SHARED_MOUNTS -DTALPA_HAVE_LOOKUP_MNT -DTALPA__LOOKUP_MNT=0x${lookup_mnt_val}UL")
         else
             AC_MSG_ERROR([not found])
         fi
@@ -1313,41 +1353,6 @@ if test $((kern_version_code)) -ge 132608; then
         fi
     else
         AC_SUBST(vfsmount_namespace, "")
-    fi
-
-    # some 2.6 kernels do not export do_execve (vanilla >=2.6.10 and some vendor ones)
-    AC_MSG_CHECKING([for syscallhook module execve support])
-    if test -f $kerneldir/fs/exec.c; then
-        ${EGREP} EXPORT_SYMBOL\\\(do_execve\\\)\; $kerneldir/fs/exec.c >/dev/null 2>&1
-        if test $? -ne 0; then
-            AC_SUBST(execve,"")
-        fi
-    elif test -f $sourcedir/fs/exec.c; then
-        ${EGREP} EXPORT_SYMBOL\\\(do_execve\\\)\; $sourcedir/fs/exec.c >/dev/null 2>&1
-        if test $? -ne 0; then
-            AC_SUBST(execve,"")
-        fi
-    else
-        AC_SUBST(execve,"")
-    fi
-
-    # Attempt to fetch do_execve address if not exported
-    if test "$execve" == ""; then
-        do_execve_addr=`${EGREP} " do_execve\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
-        if test "$do_execve_addr" != ""; then
-            AC_SUBST(execve, "-DTALPA_EXECVE_SUPPORT -DTALPA_HIDDEN_EXECVE -DTALPA_HIDDEN_EXECVE_ADDRESS=0x$do_execve_addr")
-        fi
-    fi
-
-    # Finally output result of do_execve search
-    if test "$execve" != ""; then
-        if test "$do_execve_addr" == ""; then
-            AC_MSG_RESULT([available])
-        else
-            AC_MSG_RESULT([available (0x$do_execve_addr)])
-        fi
-    else
-        AC_MSG_RESULT([not available])
     fi
 
     # Autodetect if we are running on 2.6.5 with backported sched.h
@@ -1589,7 +1594,7 @@ if test $((kern_version_code)) -ge 132608; then
                 end_rodata=`${EGREP} " __end_rodata\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
                 if test "$start_rodata" != "" -a "$end_rodata" != ""; then
                     AC_SUBST(syscallhook, "yes")
-                    AC_SUBST(rodata, "-DTALPA_HAS_RODATA -DTALPA_NEED_MANUAL_RODATA -DTALPA_RODATA_START=0x$start_rodata -DTALPA_RODATA_END=0x$end_rodata")
+                    AC_SUBST(rodata, "-DTALPA_HAS_RODATA -DTALPA_NEED_MANUAL_RODATA -DTALPA_RODATA_START=0x${start_rodata}UL -DTALPA_RODATA_END=0x${end_rodata}UL")
                     ## >= 2.6.25
                     if test $((kern_version_code)) -ge 132633; then
                         AC_SUBST(rodata, "$rodata -DTALPA_RODATA_MAP_WRITABLE -DTALPA_HAS_PROBE_KERNEL_WRITE")
@@ -1623,7 +1628,7 @@ if test $((kern_version_code)) -ge 132608; then
                 kfunc_set_memory_ro=`${EGREP} " set_memory_ro\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
                 if test "$kfunc_set_memory_rw" != "" -a "$kfunc_set_memory_ro" != ""; then
                     AC_MSG_RESULT([ok])
-                    AC_SUBST(hassetpages, "-DTALPA_HAS_SET_PAGES -DTALPA_KFUNC_SET_MEMORY_RW=0x$kfunc_set_memory_rw -DTALPA_KFUNC_SET_MEMORY_RO=0x$kfunc_set_memory_ro")
+                    AC_SUBST(hassetpages, "-DTALPA_HAS_SET_PAGES -DTALPA_KFUNC_SET_MEMORY_RW=0x${kfunc_set_memory_rw}UL -DTALPA_KFUNC_SET_MEMORY_RO=0x${kfunc_set_memory_ro}UL")
                 else
                     AC_MSG_ERROR([failed to get])
                 fi
@@ -1633,7 +1638,7 @@ if test $((kern_version_code)) -ge 132608; then
                 kfunc_set_pages_ro=`${EGREP} " set_pages_ro\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
                 if test "$kfunc_set_pages_rw" != "" -a "$kfunc_set_pages_ro" != ""; then
                     AC_MSG_RESULT([ok])
-                    AC_SUBST(hassetpages, "-DTALPA_HAS_SET_PAGES -DTALPA_KFUNC_SET_PAGES_RW=0x$kfunc_set_pages_rw -DTALPA_KFUNC_SET_PAGES_RO=0x$kfunc_set_pages_ro")
+                    AC_SUBST(hassetpages, "-DTALPA_HAS_SET_PAGES -DTALPA_KFUNC_SET_PAGES_RW=0x${kfunc_set_pages_rw}UL -DTALPA_KFUNC_SET_PAGES_RO=0x${kfunc_set_pages_ro}UL")
                 else
                     AC_MSG_ERROR([failed to get])
                 fi
@@ -1646,7 +1651,7 @@ if test $((kern_version_code)) -ge 132608; then
                 kfuncchpgattraddr=`${EGREP} " change_page_attr_addr\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
                 if test "$kfuncchpgattraddr" != ""; then
                     AC_MSG_RESULT([ok])
-                    AC_SUBST(kfuncchpgattraddr, "-DTALPA_KFUNC_CHANGE_PAGE_ATTR_ADDR=0x$kfuncchpgattraddr")
+                    AC_SUBST(kfuncchpgattraddr, "-DTALPA_KFUNC_CHANGE_PAGE_ATTR_ADDR=0x${kfuncchpgattraddr}UL")
                 else
                     AC_MSG_ERROR([failed to get])
                 fi
@@ -1664,7 +1669,7 @@ if test $((kern_version_code)) -ge 132608; then
                         phys_base=`${EGREP} " phys_base\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
                         if test "$phys_base" != ""; then
                             AC_MSG_RESULT([ok])
-                            AC_SUBST(nopasymbol, "-DTALPA_NO_PA_SYMBOL -DTALPA_PHYS_BASE=0x$phys_base")
+                            AC_SUBST(nopasymbol, "-DTALPA_NO_PA_SYMBOL -DTALPA_PHYS_BASE=0x${phys_base}UL")
                         else
                             AC_MSG_ERROR([error])
                         fi
@@ -2012,12 +2017,12 @@ if test $((kern_version_code)) -ge 132608; then
         putname_addr=`${EGREP} " putname\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
         if test "$putname_addr" != ""; then
             AC_MSG_RESULT([putname present but not exported])
-            AC_SUBST(putname, "-DTALPA_PUTNAME_SYMBOL -DTALPA_PUTNAME_ADDRESS=0x$putname_addr")
+            AC_SUBST(putname, "-DTALPA_PUTNAME_SYMBOL -DTALPA_PUTNAME_ADDRESS=0x${putname_addr}UL")
         else
             final_putname_addr=`${EGREP} " final_putname\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
             if test "$final_putname_addr" != ""; then
                 AC_MSG_RESULT([not available; final_putname present but not exported])
-                AC_SUBST(putname, "-DTALPA_FINAL_PUTNAME_SYMBOL -DTALPA_PUTNAME_ADDRESS=0x$final_putname_addr")
+                AC_SUBST(putname, "-DTALPA_FINAL_PUTNAME_SYMBOL -DTALPA_PUTNAME_ADDRESS=0x${final_putname_addr}UL")
             else
                 if test $((kern_version_code)) -lt 198400; then ## 3.7
                     AC_SUBST(putname, "-DTALPA_PUTNAME_DEFINE  -DTALPA_PUTNAME_EXPORTED")
@@ -2037,7 +2042,7 @@ if test $((kern_version_code)) -ge 132608; then
         getname_addr=`${EGREP} " getname\$" "$system_map" 2>/dev/null | ${CUT} -d ' ' -f 1`
         if test "$getname_addr" != ""; then
             AC_MSG_RESULT([getname present but not exported])
-            AC_SUBST(getname, "-DTALPA_GETNAME_SYMBOL -DTALPA_GETNAME_ADDRESS=0x$getname_addr")
+            AC_SUBST(getname, "-DTALPA_GETNAME_SYMBOL -DTALPA_GETNAME_ADDRESS=0x${getname_addr}UL")
         fi
     fi
 
@@ -2064,6 +2069,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@dotruncatetype@/${dotruncatetype}/; \
                 s/@dotruncateaddr@/${dotruncateaddr}/; \
                 s/@vfsunlink@/${vfsunlink}/; \
+                s/@vfsreaddir@/${vfsreaddir}/; \
                 s/@tasknewtty@/${tasknewtty}/; \
                 s/@rcubackport@/${rcubackport}/; \
                 s/@mutexes@/${mutexes}/; \
@@ -2082,7 +2088,6 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@lsm2614@/${lsm2614}/; \
                 s/@lsmkeys@/${lsmkeys}/; \
                 s/@hidden@/${hidden}/; \
-                s/@execve@/${execve}/; \
                 s/@xhack@/${xhack}/; \
                 s/@structfilename@/${structfilename}/; \
                 s/@hrtimers@/${hrtimers}/; \
@@ -2125,6 +2130,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@dotruncatetype@/${dotruncatetype}/; \
                 s/@dotruncateaddr@/${dotruncateaddr}/; \
                 s/@vfsunlink@/${vfsunlink}/; \
+                s/@vfsreaddir@/${vfsreaddir}/; \
                 s/@tasknewtty@/${tasknewtty}/; \
                 s/@rcubackport@/${rcubackport}/; \
                 s/@mutexes@/${mutexes}/; \
@@ -2143,7 +2149,6 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@lsm2614@/${lsm2614}/; \
                 s/@lsmkeys@/${lsmkeys}/; \
                 s/@hidden@/${hidden}/; \
-                s/@execve@/${execve}/; \
                 s/@xhack@/${xhack}/; \
                 s/@structfilename@/${structfilename}/; \
                 s/@hrtimers@/${hrtimers}/; \
@@ -2278,6 +2283,8 @@ else
     ## Defined to be true so that tests are included in source tar file
     AM_CONDITIONAL(TESTXWORKAROUND, test 1 -eq 1)
     AM_CONDITIONAL(TESTNAMESPACES, test 1 -eq 1)
+    AM_CONDITIONAL(M32_BUILD, test 1 -eq 1)
+    AM_CONDITIONAL(MX32_BUILD, test 1 -eq 1)
 fi
 
 

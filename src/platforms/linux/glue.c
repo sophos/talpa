@@ -214,6 +214,7 @@ char* talpa__d_namespace_path( struct dentry *dentry, struct vfsmount *vfsmnt,
     return path;
 }
 
+#ifdef TALPA_MNT_NAMESPACE
 static void debugPathWalk( struct dentry *dentry, struct vfsmount *vfsmnt,
             struct dentry *root, struct vfsmount *rootmnt)
 {
@@ -284,6 +285,7 @@ static void debugPathWalk( struct dentry *dentry, struct vfsmount *vfsmnt,
             rootmnt);
     }
 }
+#endif /* TALPA_MNT_NAMESPACE */
 
 char* talpa__d_path( struct dentry *dentry, struct vfsmount *vfsmnt,
             struct dentry *root, struct vfsmount *rootmnt,

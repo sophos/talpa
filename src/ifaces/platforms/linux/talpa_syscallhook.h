@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -32,10 +32,10 @@ struct talpa_syscall_operations
 {
     long    (*open_post)    (unsigned int fd);
     void    (*close_pre)    (unsigned int fd);
-    long    (*uselib_pre)   (const char* library);
+    long    (*uselib_pre)   (const char __user * library);
     int     (*execve_pre)   (const TALPA_FILENAME_T* name);
-    long    (*mount_pre)    (char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void* data);
-    long    (*mount_post)   (int err, char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void* data);
+    long    (*mount_pre)    (char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data);
+    long    (*mount_post)   (int err, char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data);
     void    (*umount_pre)   (char __user * name, int flags, void** ctx);
     void    (*umount_post)  (int err, char __user * name, int flags, void* ctx);
 };

@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright(C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright(C) 2004-2018 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -28,9 +28,14 @@
 #include <linux/fs.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
   #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,3)
+    /* ftrace symbols aren't available to modules, so turn this off */
+    #undef CONFIG_FTRACE_SYSCALLS
     #include <linux/syscalls.h>
   #endif
   #include <linux/ptrace.h>
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+#include <asm/syscall.h>
 #endif
 #ifdef TALPA_NEED_MANUAL_RODATA
 #include <asm/page.h>
@@ -46,8 +51,113 @@
 #include "platforms/linux/glue.h"
 #include "platforms/linux/locking.h"
 
+#ifndef __MAP
+/*
+ * __MAP - apply a macro to syscall arguments
+ * __MAP(n, m, t1, a1, t2, a2, ..., tn, an) will expand to
+ *    m(t1, a1), m(t2, a2), ..., m(tn, an)
+ * The first argument must be equal to the amount of type/name
+ * pairs given.  Note that this list of pairs (i.e. the arguments
+ * of __MAP starting at the third one) is in the same format as
+ * for SYSCALL_DEFINE<n>/COMPAT_SYSCALL_DEFINE<n>
+ */
+# define __MAP0(m,...)
+# define __MAP1(m,t,a,...) m(t,a)
+# define __MAP2(m,t,a,...) m(t,a), __MAP1(m,__VA_ARGS__)
+# define __MAP3(m,t,a,...) m(t,a), __MAP2(m,__VA_ARGS__)
+# define __MAP4(m,t,a,...) m(t,a), __MAP3(m,__VA_ARGS__)
+# define __MAP5(m,t,a,...) m(t,a), __MAP4(m,__VA_ARGS__)
+# define __MAP6(m,t,a,...) m(t,a), __MAP5(m,__VA_ARGS__)
+# define __MAP(n,...) __MAP##n(__VA_ARGS__)
+#endif
 
-static asmlinkage long (*orig_mount)(char* dev_name, char* dir_name, char* type, unsigned long flags, void* data);
+#ifndef __SC_DECL
+# define __TALPA_SC_DECL(t, a) t a
+#else
+# define __TALPA_SC_DECL __SC_DECL
+#endif
+
+/* SYSCALL_DEFINE* only from kernel 2.6.27 onwards */
+#ifndef SYSCALL_DEFINEx
+# define SYSCALL_DEFINEx(x, name, ...) \
+    asmlinkage long sys##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))
+#endif
+#ifndef SYSCALL_DEFINE1
+# define SYSCALL_DEFINE0(name) asmlinkage long sys_##name(void)
+# define SYSCALL_DEFINE1(name, ...) SYSCALL_DEFINEx(1, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE2(name, ...) SYSCALL_DEFINEx(2, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE3(name, ...) SYSCALL_DEFINEx(3, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE4(name, ...) SYSCALL_DEFINEx(4, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE5(name, ...) SYSCALL_DEFINEx(5, _##name, __VA_ARGS__)
+# define SYSCALL_DEFINE6(name, ...) SYSCALL_DEFINEx(6, _##name, __VA_ARGS__)
+#endif
+
+// if using syscall wrapper
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0) && defined(CONFIG_X86_64)
+# define SYSCALL_FN(name) __x64_sys_##name
+# ifdef CONFIG_IA32_EMULATION
+#  define SYSCALL_IA32_FN(name) __ia32_sys_##name
+#  define SYSCALL_IA32_ORIG(name) \
+    static asmlinkage long __attribute__((unused)) (*orig32_##name)(const struct pt_regs *regs);
+#  define DO_IA32_ORIG(name) \
+    if (current->thread_info.status & TS_COMPAT)\
+        return orig32_##name(&regs);
+# else
+#  define SYSCALL_IA32_ORIG(name)
+#  define DO_IA32_ORIG(name)
+# endif
+# define SYSCALL_ORIGx(x, name, ...) \
+    static asmlinkage long (*orig_##name)(const struct pt_regs *regs);\
+    SYSCALL_IA32_ORIG(name)\
+    __diag_push();\
+    __diag_ignore(GCC, 8, "-Wattribute-alias", \
+        "Type aliasing is used to sanitize syscall arguments");\
+    static inline long __orig_##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))\
+        __attribute__((alias(__stringify(__origl_##name))));\
+    static inline long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__));\
+    static inline long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__))\
+    {\
+        struct pt_regs regs;\
+        unsigned long args[] = { __MAP(x, __SC_ARGS, __VA_ARGS__) };\
+        syscall_set_arguments(current, &regs, 0, x, args);\
+        __MAP(x,__SC_TEST,__VA_ARGS__);\
+        DO_IA32_ORIG(name)\
+        return orig_##name(&regs);\
+    }\
+    __diag_pop();
+# define CALL_ORIGx(x, name, ...) __##name(__VA_ARGS__)
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0) */
+# define SYSCALL_FN(name) sys_##name
+# ifdef CONFIG_IA32_EMULATION
+#  define SYSCALL_IA32_FN(name) sys_##name
+#  define SYSCALL_IA32_ORIG(x, name, ...) \
+    static asmlinkage long __attribute__((unused)) (*orig32_##name)(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__));
+# else
+#  define SYSCALL_IA32_ORIG(x, name, ...)
+# endif
+# define SYSCALL_ORIGx(x, name, ...) \
+    SYSCALL_IA32_ORIG(x, name, __VA_ARGS__)\
+    static asmlinkage long (*orig_##name)(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))
+# define CALL_ORIGx(x, name, ...) name(__VA_ARGS__)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0) */
+
+#define CALL_ORIG0(name, ...) CALL_ORIGx(0, name, __VA_ARGS__)
+#define CALL_ORIG1(name, ...) CALL_ORIGx(1, name, __VA_ARGS__)
+#define CALL_ORIG2(name, ...) CALL_ORIGx(2, name, __VA_ARGS__)
+#define CALL_ORIG3(name, ...) CALL_ORIGx(3, name, __VA_ARGS__)
+#define CALL_ORIG4(name, ...) CALL_ORIGx(4, name, __VA_ARGS__)
+#define CALL_ORIG5(name, ...) CALL_ORIGx(5, name, __VA_ARGS__)
+#define CALL_ORIG6(name, ...) CALL_ORIGx(6, name, __VA_ARGS__)
+
+#define SYSCALL_ORIG0(name, ...) SYSCALL_ORIGx(0, name, __VA_ARGS__)
+#define SYSCALL_ORIG1(name, ...) SYSCALL_ORIGx(1, name, __VA_ARGS__)
+#define SYSCALL_ORIG2(name, ...) SYSCALL_ORIGx(2, name, __VA_ARGS__)
+#define SYSCALL_ORIG3(name, ...) SYSCALL_ORIGx(3, name, __VA_ARGS__)
+#define SYSCALL_ORIG4(name, ...) SYSCALL_ORIGx(4, name, __VA_ARGS__)
+#define SYSCALL_ORIG5(name, ...) SYSCALL_ORIGx(5, name, __VA_ARGS__)
+#define SYSCALL_ORIG6(name, ...) SYSCALL_ORIGx(6, name, __VA_ARGS__)
+
+SYSCALL_ORIG5(mount, char __user *, dev_name, char __user *, dir_name, char __user *, type, unsigned long, flags, void __user *, data);
 
 #if defined(TALPA_HAS_RODATA)
 static void *talpa_syscallhook_unro(void *addr, size_t len, int rw);
@@ -134,10 +244,15 @@ void *talpa_syscallhook_poke(void *addr, void *val)
     return (void *)target;
 }
 
-static asmlinkage long talpa_mount(char* dev_name, char* dir_name, char* type, unsigned long flags, void* data)
+SYSCALL_DEFINE5(talpa_mount, char __user *, dev_name,
+                             char __user *, dir_name,
+                             char __user *, type,
+                             unsigned long, flags,
+                             void __user *, data)
+
 {
     long err;
-    err = orig_mount(dev_name, dir_name, type, flags, data);
+    err = CALL_ORIG5(orig_mount, dev_name, dir_name, type, flags, data);
     prevent_tail_call(err);
     return err;
 }
@@ -154,7 +269,7 @@ static void **talpa_sys_call_table;
    patched 2.4 (x86) kernels. */
 
   #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0)
-static void *lower_bound = 0;
+static void *lower_bound = NULL;
   #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
     #include <linux/kallsyms.h>
 static void *lower_bound = &kernel_thread;
@@ -178,7 +293,7 @@ static void **get_start_addr(void)
   #endif
 #endif
     err("Syscall searching not available for 2.6.39+");
-    return (void **)0;
+    return NULL;
 }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
 static void **get_start_addr(void)
@@ -245,7 +360,7 @@ static int verify(void **p, const unsigned int unique_syscalls[], const unsigned
         }
     }
 
-    /* Check that all different sysmte calls are really different */
+    /* Check that all different system calls are really different */
     for ( i = 0; i < num_unique_syscalls; i++ )
     {
         for ( s = 0; s < 223; s++ )
@@ -497,7 +612,7 @@ static void **look_around(void **p, const unsigned int unique_syscalls[], const 
 
         if ( ok && verify((void **)start_addr, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, symlookup) )
         {
-            info("At offset %ld", start_addr - orig_addr);
+            info("At offset %zd", start_addr - orig_addr);
             return (void **)start_addr;
         }
     }
@@ -518,7 +633,7 @@ static void **find_around(void **p, const unsigned int unique_syscalls[], const 
         res = talpa_find_syscall_table((void **)start_addr, unique_syscalls, num_unique_syscalls, zapped_syscalls, num_zapped_syscalls, symlookup);
         if ( res )
         {
-            info("Found with offset %ld", start_addr - orig_addr);
+            info("Found with offset %zd", start_addr - orig_addr);
             return res;
         }
     }
@@ -610,12 +725,12 @@ static void save_originals(void)
 
 static void patch_table(void)
 {
-    patch_syscall(talpa_sys_call_table, __NR_mount, talpa_mount);
+    patch_syscall(talpa_sys_call_table, __NR_mount, SYSCALL_FN(talpa_mount));
 }
 
 static unsigned int check_table(void)
 {
-    if ( talpa_sys_call_table[__NR_mount] != talpa_mount )
+    if ( talpa_sys_call_table[__NR_mount] != SYSCALL_FN(talpa_mount) )
     {
         warn("mount() is patched by someone else!");
         return 1;
@@ -694,7 +809,7 @@ static void __exit talpa_syscallhook_exit(void)
        has modified the syscall table after us. Therefore we
        will check for that and sleep until the situation resolves.
        There isn't really a perfect solution in these sorts of
-       unsupported oprations so it is better to hang here than
+       unsupported operations so it is better to hang here than
        to cause system instability in any way.
        The best thing would be to leave this module loaded forever.
     */

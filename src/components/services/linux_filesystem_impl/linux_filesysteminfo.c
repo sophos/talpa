@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -178,8 +178,8 @@ LinuxFilesystemInfo* newLinuxFilesystemInfo(EFilesystemOperation operation, cons
         {
             object->mType = copyString(type);
 
-            mnt = 0;
-            dentry = 0;
+            mnt = NULL;
+            dentry = NULL;
 #ifdef TALPA_HAVE_PATH_LOOKUP
             rc = talpa_path_lookup(dev_name, TALPA_LOOKUP, &nd);
 #else
@@ -228,8 +228,8 @@ LinuxFilesystemInfo* newLinuxFilesystemInfo(EFilesystemOperation operation, cons
             if ( dir_name )
             {
 
-                mnt = 0;
-                dentry = 0;
+                mnt = NULL;
+                dentry = NULL;
 #ifdef TALPA_HAVE_PATH_LOOKUP
                 rc = talpa_path_lookup(dir_name, TALPA_LOOKUP, &nd);
 #else
@@ -255,7 +255,7 @@ LinuxFilesystemInfo* newLinuxFilesystemInfo(EFilesystemOperation operation, cons
 #endif
                 }
 
-                if ( object->mMountPoint == 0 )
+                if ( object->mMountPoint == NULL )
                 {
                     dbg("DEBUG: EFS_Mount absolutePath dir_name failed: %s",dir_name);
                     object->mMountPoint = copyString(dir_name);
@@ -292,7 +292,7 @@ LinuxFilesystemInfo* newLinuxFilesystemInfo(EFilesystemOperation operation, cons
 
             object->mMountPoint = absolutePath(dentry,mnt);
 
-            if ( object->mMountPoint == 0 )
+            if ( object->mMountPoint == NULL )
             {
                 dbg("DEBUG: EFS_Umount absolutePath dir_name failed");
                 object->mMountPoint = copyString(dir_name);
@@ -338,8 +338,8 @@ LinuxFilesystemInfo* newLinuxFilesystemInfo(EFilesystemOperation operation, cons
                         if (S_ISBLK(inode->i_mode))
                         {
                             object->mDevice = kdev_t_to_nr(inode->i_rdev);
-                            object->mDeviceMajor = MAJOR(kdev_t_to_nr(inode->i_rdev));
-                            object->mDeviceMinor = MINOR(kdev_t_to_nr(inode->i_rdev));
+                            object->mDeviceMajor = MAJOR(inode->i_rdev);
+                            object->mDeviceMinor = MINOR(inode->i_rdev);
                         }
 
 #ifdef TALPA_HAVE_PATH_LOOKUP

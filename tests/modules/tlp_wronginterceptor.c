@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2008-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2008-2018 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -41,32 +41,28 @@ static void talpaDummyClose(unsigned int fd)
     return;
 }
 
-static long talpaDummyUselib(const char* library)
+static long talpaDummyUselib(const char __user * library)
 {
     return 0;
 }
 
-static int  talpaDummyExecve(const TALPA_FILENAME_T* name)
+
+static long talpaDummyPreMount(char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data)
 {
     return 0;
 }
 
-static long talpaDummyPreMount(char* dev_name, char* dir_name, char* type, unsigned long flags, void* data)
+static long talpaDummyPostMount(int err, char __user * dev_name, char __user * dir_name, char __user * type, unsigned long flags, void __user * data)
 {
     return 0;
 }
 
-static long talpaDummyPostMount(int err, char* dev_name, char* dir_name, char* type, unsigned long flags, void* data)
-{
-    return 0;
-}
-
-static void talpaDummyPreUmount(char* name, int flags, void** ctx)
+static void talpaDummyPreUmount(char __user * name, int flags, void** ctx)
 {
     return;
 }
 
-static void talpaDummyPostUmount(int err, char* name, int flags, void* ctx)
+static void talpaDummyPostUmount(int err, char __user * name, int flags, void* ctx)
 {
     return;
 }
@@ -74,7 +70,7 @@ static void talpaDummyPostUmount(int err, char* name, int flags, void* ctx)
 static struct talpa_syscall_operations ops = {
     .open_post = talpaDummyOpen,
     .close_pre = talpaDummyClose,
-    .execve_pre = talpaDummyExecve,
+    .execve_pre = NULL,
     .uselib_pre = talpaDummyUselib,
     .mount_pre = talpaDummyPreMount,
     .mount_post = talpaDummyPostMount,

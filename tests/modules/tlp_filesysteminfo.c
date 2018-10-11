@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -86,8 +86,8 @@ int talpa_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsign
                 if ( fsi )
                 {
                     tfs.operation = fsi->i_IFilesystemInfo.operation(fsi);
-                    strncpy(tfs.dev,fsi->i_IFilesystemInfo.deviceName(fsi),sizeof(tfs.dev));
-                    strncpy(tfs.target,fsi->i_IFilesystemInfo.mountPoint(fsi),sizeof(tfs.target));
+                    strlcpy(tfs.dev,fsi->i_IFilesystemInfo.deviceName(fsi),sizeof(tfs.dev));
+                    strlcpy(tfs.target,fsi->i_IFilesystemInfo.mountPoint(fsi),sizeof(tfs.target));
                     tfs.major = fsi->i_IFilesystemInfo.deviceMajor(fsi);
                     tfs.minor = fsi->i_IFilesystemInfo.deviceMinor(fsi);
                     ret = copy_to_user((void *)parm,&tfs,sizeof(struct talpa_filesystem));
@@ -128,7 +128,7 @@ static int __init talpa_test_init(void)
     int ret;
 
     mSystemRoot = newLinuxSystemRoot();
-    if (mSystemRoot == 0)
+    if (mSystemRoot == NULL)
     {
         err("Failed to create system root");
         return -ENOMEM;

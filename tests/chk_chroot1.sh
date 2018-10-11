@@ -1,7 +1,6 @@
+#! /bin/bash
 #
-# talpa-syscall/Makefile.am
-#
-# TALPA Filesystem Interceptor
+# TALPA test script
 #
 # Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
 #
@@ -16,14 +15,15 @@
 # write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
 
-include src/app-ctrl/intercepts/talpa-syscall/common.mk
+##
+## Check that a file opened before a chroot, then written and closed after
+## the chroot still has the correct path reported.
+##
 
-talpa_syscall_o_SOURCES =  $(talpaSyscallSOURCES)
+. ${srcdir}/talpa-init.sh
 
-talpa_syscall_o_CFLAGS  =   $(modules_CFLAGS) @hidden@
-talpa_syscall_o_LINK    =   $(MODULELINKCMD)
+mkdir /tmp/tlp-test/dir
 
-TALPAMODULESRC += $(talpa_syscall_o_SOURCES)
-#
-# End of talpa-syscall/Makefile.am
-#
+./chk_chroot1 0 /tmp/tlp-test/dir /tmp/tlp-test/file
+
+exit $?

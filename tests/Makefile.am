@@ -3,7 +3,7 @@
 ##
 ## TALPA Filesystem Interceptor
 ##
-## Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
+## Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
 ##
 ## This program is free software; you can redistribute it and/or modify it under the terms of the
 ## GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -127,6 +127,12 @@ check_PROGRAMS +=   chkstdinterceptor \
                     tlp-8-003 \
                     tlp-8-004 \
                     chk_chroot \
+                    chk_chroot1 \
+                    chk_chroot2 \
+                    chk_chroot3 \
+                    chk_chroot4 \
+                    chk_mount \
+                    chk_umount \
                     chk_bind1
 
 if TESTNAMESPACES
@@ -306,6 +312,24 @@ tlp_8_004_CFLAGS = $(USERSPACE_C_FLAGS)
 chk_chroot_SOURCES = chk_chroot.c ../clients/vc-lib.c ../clients/talpa.c
 chk_chroot_CFLAGS = $(USERSPACE_C_FLAGS)
 
+chk_chroot1_SOURCES = chk_chroot1.c ../clients/vc-lib.c ../clients/talpa.c
+chk_chroot1_CFLAGS = $(USERSPACE_C_FLAGS)
+
+chk_chroot2_SOURCES = chk_chroot2.c ../clients/vc-lib.c ../clients/talpa.c
+chk_chroot2_CFLAGS = $(USERSPACE_C_FLAGS)
+
+chk_chroot3_SOURCES = chk_chroot3.c ../clients/vc-lib.c ../clients/talpa.c
+chk_chroot3_CFLAGS = $(USERSPACE_C_FLAGS)
+
+chk_chroot4_SOURCES = chk_chroot4.c ../clients/vc-lib.c ../clients/talpa.c
+chk_chroot4_CFLAGS = $(USERSPACE_C_FLAGS)
+
+chk_mount_SOURCES = chk_mount.c ../clients/vc-lib.c ../clients/talpa.c
+chk_mount_CFLAGS = $(USERSPACE_C_FLAGS)
+
+chk_umount_SOURCES = chk_umount.c ../clients/vc-lib.c ../clients/talpa.c
+chk_umount_CFLAGS = $(USERSPACE_C_FLAGS)
+
 chk_namespace_SOURCES = chk_namespace.c ../clients/vc-lib.c ../clients/talpa.c
 chk_namespace_CFLAGS = $(USERSPACE_C_FLAGS)
 
@@ -476,7 +500,15 @@ TESTS +=                  chkext2fops.sh \
                           chkminix1.sh \
                           chkminix2.sh \
                           chk_lsattr.sh \
-                          chk_chroot.sh
+                          chk_chroot.sh \
+                          chk_chroot1.sh \
+                          chk_chroot2.sh \
+                          chk_chroot3.sh \
+                          chk_chroot4.sh \
+                          chk_mount.sh \
+                          chk_mount1.sh \
+                          chk_umount.sh \
+                          chk_umount1.sh
 
 if TESTNAMESPACES
 TESTS +=                  chk_namespace.sh \
@@ -487,8 +519,25 @@ TESTS +=                  chk_bind.sh \
                           chk_bind1.sh \
                           chk_bind2.sh \
                           chk_bind3.sh \
-                          chk_move.sh \
-                          tlp-cleanup.sh
+                          chk_move.sh
+
+if M32_BUILD
+check_PROGRAMS +=         chk_m32mnt
+chk_m32mnt_SOURCES =      chkext2mnt.c
+chk_m32mnt_CFLAGS =       $(USERSPACE_C_FLAGS) -m32
+chk_m32mnt_LDFLAGS =       $(USERSPACE_C_FLAGS) -m32
+TESTS +=                  chk_m32mnt.sh
+endif
+
+if MX32_BUILD
+check_PROGRAMS +=         chk_mx32mnt
+chk_mx32mnt_SOURCES =     chkext2mnt.c
+chk_mx32mnt_CFLAGS =      $(USERSPACE_C_FLAGS) -mx32
+chk_mx32mnt_LDFLAGS =      $(USERSPACE_C_FLAGS) -mx32
+TESTS +=                  chk_mx32mnt.sh
+endif
+
+TESTS +=                  tlp-cleanup.sh
 
 check_SCRIPTS =           $(TESTS) \
                           sysctldisable.sh \

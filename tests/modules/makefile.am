@@ -3,7 +3,7 @@
 #
 # TALPA Filesystem Interceptor
 #
-# Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
+# Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
 #
 # This program is free software; you can redistribute it and/or modify it under the terms of the
 # GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -90,7 +90,7 @@ clean-local :
 
 else
 
-modules_SYMS            =   -D__KERNEL__ -DMODULE -DEXPORT_SYMTAB @talpaversion@ @debug@ @hidden@ @execve@ @assert@ @freetaskflag@ @pathlookup@ @newparent@ @dotruncatetype@ @dotruncateaddr@ @backportedprefetch@ @snprintf@ @xhack@ @binarysysctl@ ${TALPA_ID} ${TALPA_SYSCALL_TABLE} ${TALPA_SYSCALL32_TABLE}
+modules_SYMS            =   -D__KERNEL__ -DMODULE -DEXPORT_SYMTAB @talpaversion@ @debug@ @hidden@ @assert@ @freetaskflag@ @pathlookup@ @newparent@ @dotruncatetype@ @dotruncateaddr@ @backportedprefetch@ @snprintf@ @xhack@ @binarysysctl@ ${TALPA_ID} ${TALPA_SYSCALL_TABLE} ${TALPA_SYSCALL32_TABLE}
 modules_CFLAGS          =   $(modules_SYMS) -O2 -fno-strict-aliasing -fno-common -fomit-frame-pointer -mpreferred-stack-boundary=2 -Wall -I$(srcdir)/../../include -I$(srcdir)/../../src -I$(srcdir)/../../src/ifaces @kernelincludes@
 MODULELINKCMD           =   $(MODULELINKER) -m elf_i386 -r -o $@
 
