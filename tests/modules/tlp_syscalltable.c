@@ -112,10 +112,10 @@
     __diag_push();\
     __diag_ignore(GCC, 8, "-Wattribute-alias", \
         "Type aliasing is used to sanitize syscall arguments");\
-    static inline long __orig_##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))\
+    static long __orig_##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))\
         __attribute__((alias(__stringify(__origl_##name))));\
-    static inline long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__));\
-    static inline long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__))\
+    static long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__));\
+    static long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__))\
     {\
         struct pt_regs regs;\
         unsigned long args[] = { __MAP(x, __SC_ARGS, __VA_ARGS__) };\
