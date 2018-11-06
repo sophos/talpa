@@ -584,8 +584,14 @@ function check_headers_layout
     if test -d "${kerneldir}/include/generated/uapi"; then
         kernelhdrspath=`append_path "${kernelhdrspath}" "${kerneldir}/include/generated/uapi"`
     fi
+    if test -d "${kerneldir}/arch/x86/include/generated/uapi"; then
+        kernelhdrspath=`append_path "${kernelhdrspath}" "${kerneldir}/arch/x86/include/generated/uapi"`
+    fi
     if test -d "${kerneldir}/include/uapi"; then
         kernelhdrspath=`append_path "${kernelhdrspath}" "${kerneldir}/include/uapi"`
+    fi
+    if test -d "${kerneldir}/arch/x86/include/uapi"; then
+        kernelhdrspath=`append_path "${kernelhdrspath}" "${kerneldir}/arch/x86/include/uapi"`
     fi
 
     # Support for possibly broken Debian 7.11 3.16.0-0.bpo.4-amd64 backport.
