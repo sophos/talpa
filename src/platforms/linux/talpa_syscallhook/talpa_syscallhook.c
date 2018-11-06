@@ -153,6 +153,17 @@ const char talpa_iface_version[] = "$TALPA_IFACE_VERSION:" TALPA_SYSCALLHOOK_IFA
 # define SYSCALL_DEFINE6(name, ...) SYSCALL_DEFINEx(6, _##name, __VA_ARGS__)
 #endif
 
+/* __diag_* only from 4.18 onwards */
+#ifndef __diag_push
+#define __diag_push()
+#endif
+#ifndef __diag_pop
+#define __diag_pop()
+#endif
+#ifndef __diag_ignore
+#define __diag_ignore(compiler, version, option, comment)
+#endif
+
 // if using syscall wrapper
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0) && defined(CONFIG_X86_64)
 # define SYSCALL_FN(name) __x64_sys_##name
