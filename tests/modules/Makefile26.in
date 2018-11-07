@@ -2,14 +2,15 @@
 EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../include \
 		${TALPA_ID} ${TALPA_SYSCALL_TABLE} ${TALPA_SYSCALL32_TABLE} ${TALPA_RODATA_START} ${TALPA_RODATA_END} \
 		@talpaversion@ \
-                @debug@ \
+		@debug@ \
 		@assert@ \
 		@bool@ \
 		@ctltable@ \
 		@freetaskflag@ \
-                @dpath@ \
+		@dpath@ \
 		@printkaddr@ \
 		@dotruncatetype@ @dotruncateaddr@ \
+		@has_retpoline@ \
 		@tasknewtty@ \
 		@rcubackport@ \
 		@mutexes@ \
@@ -17,7 +18,7 @@ EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../incl
 		@fdentry@ \
 		@inodeiprivate@ \
 		@signalbackport@ \
-                @jiffiesbackport@ \
+		@jiffiesbackport@ \
 		@smbfs@ \
 		@lsm265@ \
 		@lsm266@ \
@@ -33,7 +34,7 @@ EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../incl
 		@hassetpages@ \
 		@needsvacpa@ \
 		@nopasymbol@ \
-                @kfuncchpgattraddr@ \
+		@kfuncchpgattraddr@ \
 		@notasklistlock@ \
 		@vfsmntlock@ \
 		@samefile@ \
@@ -51,7 +52,7 @@ EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../incl
 		@lookup_mnt_last@ \
 		@get_fs_root_and_pwd@ \
 		@vfsmount_namespace@ \
-        @compile_flags@
+		@compile_flags@
 
 obj-m :=    tlp-personality.o \
             tlp-fileinfo.o \

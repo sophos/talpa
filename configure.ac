@@ -721,6 +721,16 @@ if test "$xen" = "1"; then
     fi
 fi
 
+AC_MSG_CHECKING([for retpoline])
+tmp=`${EGREP} "CONFIG_RETPOLINE " $autoconf_h_path 2>/dev/null | ${CUT} -d ' ' -f 3`
+if test "$tmp" = "1"; then
+    AC_MSG_RESULT([configured])
+    AC_SUBST(has_retpoline,"-DTALPA_HAS_RETPOLINE")
+else
+    AC_MSG_RESULT([not configured])
+    AC_SUBST(has_retpoline,"")
+fi
+
 # Test if and how we can compile test programs
 AC_MSG_CHECKING([for compilation environment])
 if test "$auto_warnings" = "yes"; then
@@ -2184,6 +2194,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s!@uapiunistdinclude@!${uapiunistdinclude}!; \
                 s!@unistd64x32include@!${unistd64x32include}!; \
                 s!@autoconf_h_include@!${autoconf_h_include}!; \
+                s!@has_retpoline@!${has_retpoline}!; \
                 s/@lookup_mnt_last@/${lookup_mnt_last}/; \
                 s/@get_fs_root_and_pwd@/${get_fs_root_and_pwd}/; \
                 s/@vfsmount_namespace@/${vfsmount_namespace}/; \

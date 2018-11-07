@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -18,7 +18,6 @@
  */
 #ifndef TLPTEST_H
 #define TLPTEST_H
-
 
 #define TALPA_MAJOR 60
 #define TALPA_DEVICE "talpa-test"
@@ -135,6 +134,15 @@ struct talpa_cacheobj
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/fs.h>
+
+/* see if the kernel was built with retpoline (TALPA_HAS_RETPOLINE) and whether
+ * we can build our modules to match (RETPOLINE). */
+#ifdef TALPA_HAS_RETPOLINE
+/* RETPOLINE is defined by the kernel Makefile only if gcc has the required options */
+# ifndef RETPOLINE
+#  error "CONFIG_RETPOLINE=y, but not supported by the compiler. Toolchain update required."
+# endif
+#endif
 
   #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,23)
 static inline int talpa_unregister_chrdev(unsigned int major, const char *name)
