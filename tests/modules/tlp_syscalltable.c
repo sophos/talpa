@@ -92,6 +92,17 @@
 # define SYSCALL_DEFINE6(name, ...) SYSCALL_DEFINEx(6, _##name, __VA_ARGS__)
 #endif
 
+/* __diag_* only from 4.18 onwards */
+#ifndef __diag_push
+#define __diag_push()
+#endif
+#ifndef __diag_pop
+#define __diag_pop()
+#endif
+#ifndef __diag_ignore
+#define __diag_ignore(compiler, version, option, comment)
+#endif
+
 // if using syscall wrapper
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0) && defined(CONFIG_X86_64)
 # define SYSCALL_FN(name) __x64_sys_##name
@@ -112,10 +123,10 @@
     __diag_push();\
     __diag_ignore(GCC, 8, "-Wattribute-alias", \
         "Type aliasing is used to sanitize syscall arguments");\
-    static inline long __orig_##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))\
+    static long __orig_##name(__MAP(x, __TALPA_SC_DECL, __VA_ARGS__))\
         __attribute__((alias(__stringify(__origl_##name))));\
-    static inline long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__));\
-    static inline long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__))\
+    static long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__));\
+    static long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__))\
     {\
         struct pt_regs regs;\
         unsigned long args[] = { __MAP(x, __SC_ARGS, __VA_ARGS__) };\
