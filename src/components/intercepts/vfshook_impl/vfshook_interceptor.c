@@ -1230,16 +1230,27 @@ static int talpaDentryRevalidate(struct dentry * dentry, struct nameidata * nd)
 
 #define atomic_open_dbg dbg
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+static int talpaAtomicOpen(struct inode* inode, struct dentry* dentry,
+                    struct file* file, unsigned open_flag,
+                    umode_t create_mode)
+#else /* < 4.19.0 */
 static int talpaAtomicOpen(struct inode* inode, struct dentry* dentry,
                     struct file* file, unsigned open_flag,
                     umode_t create_mode, int *opened)
+#endif
 {
     struct patchedFilesystem *p;
     struct patchedFilesystem *patch = NULL;
     int resultCode = -ENXIO;
     bool writable;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+    int (*atomic_open)(struct inode *, struct dentry *, struct file *,
+            unsigned open_flag, umode_t create_mode) = NULL;
+#else /* < 4.19.0 */
     int (*atomic_open)(struct inode *, struct dentry *, struct file *,
             unsigned open_flag, umode_t create_mode, int *opened) = NULL;
+#endif
 
     hookEntry();
 
@@ -1290,7 +1301,11 @@ static int talpaAtomicOpen(struct inode* inode, struct dentry* dentry,
     /* First call the original hook */
     else if ( likely (atomic_open != NULL) )
     {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+        resultCode = atomic_open(inode,dentry,file,open_flag,create_mode);
+#else /* < 4.19.0 */
         resultCode = atomic_open(inode,dentry,file,open_flag,create_mode,opened);
+#endif
         atomic_open_dbg("atomic_open patch->atomic_open => %d",resultCode);
     }
     else
