@@ -128,9 +128,15 @@ struct patchedFilesystem
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0) */
 #endif /* TALPA_HOOK_D_OPS */
 #ifdef TALPA_HOOK_ATOMIC_OPEN
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+    int                     (*atomic_open)(struct inode *, struct dentry *,
+                                           struct file *, unsigned open_flag,
+                                           umode_t create_mode);
+#else /* < 4.19.0 */
     int                     (*atomic_open)(struct inode *, struct dentry *,
                                            struct file *, unsigned open_flag,
                                            umode_t create_mode, int *opened);
+#endif
 #endif
 #ifdef TALPA_USE_FLUSH_TO_SCAN_CLOSE_ON_EXIT
     int                     (*flush)(struct file *,fl_owner_t);
