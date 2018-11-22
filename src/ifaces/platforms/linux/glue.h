@@ -341,7 +341,7 @@ void talpa_putname(TALPA_FILENAME_T* filename);
 #endif
 
 #ifndef TALPA_GETNAME_EXPORTED
-TALPA_FILENAME_T * talpa_getname(const char * filename);
+TALPA_FILENAME_T * talpa_getname(const char __user * filename);
 #else
 # define talpa_getname getname
 #endif
