@@ -724,11 +724,22 @@ fi
 AC_MSG_CHECKING([for retpoline])
 tmp=`${EGREP} "CONFIG_RETPOLINE " $autoconf_h_path 2>/dev/null | ${CUT} -d ' ' -f 3`
 if test "$tmp" = "1"; then
-    AC_MSG_RESULT([configured])
-    AC_SUBST(has_retpoline,"-DTALPA_HAS_RETPOLINE")
+    TALPA_LOCATE_FILE(arch/x86/Makefile, ${kerneldir}:${sourcedir}, archmakefound=yes, archmakefound=no)
+    if test "$archmakefound" = "yes"; then
+        archmake_path=$TALPA_FILE_LOCATION/arch/x86/Makefile
+        if ${EGREP} -- "-DRETPOLINE" $archmake_path >/dev/null 2>&1; then
+            AC_MSG_RESULT([configured, needs check])
+            AC_SUBST(check_retpoline,"-DTALPA_CHECK_RETPOLINE")
+        else
+            AC_MSG_RESULT([configured, no check needed])
+            AC_SUBST(check_retpoline,"")
+        fi
+    else
+        AC_MSG_ERROR([arch/x86/Makefile not found])
+    fi
 else
     AC_MSG_RESULT([not configured])
-    AC_SUBST(has_retpoline,"")
+    AC_SUBST(check_retpoline,"")
 fi
 
 # Test if and how we can compile test programs
@@ -2194,7 +2205,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s!@uapiunistdinclude@!${uapiunistdinclude}!; \
                 s!@unistd64x32include@!${unistd64x32include}!; \
                 s!@autoconf_h_include@!${autoconf_h_include}!; \
-                s!@has_retpoline@!${has_retpoline}!; \
+                s!@check_retpoline@!${check_retpoline}!; \
                 s/@lookup_mnt_last@/${lookup_mnt_last}/; \
                 s/@get_fs_root_and_pwd@/${get_fs_root_and_pwd}/; \
                 s/@vfsmount_namespace@/${vfsmount_namespace}/; \

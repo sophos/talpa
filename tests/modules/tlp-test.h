@@ -135,9 +135,9 @@ struct talpa_cacheobj
 #include <linux/types.h>
 #include <linux/fs.h>
 
-/* see if the kernel was built with retpoline (TALPA_HAS_RETPOLINE) and whether
+/* see if the kernel was built with retpoline (TALPA_CHECK_RETPOLINE) and whether
  * we can build our modules to match (RETPOLINE). */
-#ifdef TALPA_HAS_RETPOLINE
+#ifdef TALPA_CHECK_RETPOLINE
 /* RETPOLINE is defined by the kernel Makefile only if gcc has the required options */
 # ifndef RETPOLINE
 #  error "CONFIG_RETPOLINE=y, but not supported by the compiler. Toolchain update required."
