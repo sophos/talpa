@@ -25,7 +25,12 @@
 #include <linux/string.h>
 #include <linux/unistd.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+#include <uapi/linux/mount.h> /* for MS_REMOUNT,etc. */
+#else
 #include <linux/mount.h>
+#endif
+
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/fs_struct.h>
