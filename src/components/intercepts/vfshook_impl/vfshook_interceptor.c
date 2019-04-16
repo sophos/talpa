@@ -1990,6 +1990,9 @@ static bool repatchFilesystem(struct dentry* dentry, bool smbfs, struct patchedF
         }
     }
 
+    /* Free list showed to userspace so it will be regenerated on next read */
+    destroyStringSet(&GL_object, &GL_object.mPatchListSet);
+
     dbg("Re-patched filesystem %s", patch->fstype->name);
 
     return shouldinc;
@@ -2969,6 +2972,9 @@ static void talpaPostUmount(int err, char __user * name, int flags, void* ctx)
             dbg("usecnt for %s = %d", patch->fstype->name, atomic_read(&patch->usecnt));
             talpa_rcu_write_unlock(&GL_object.mPatchLock);
         }
+
+        /* Free list showed to userspace so it will be regenerated on next read */
+        destroyStringSet(&GL_object, &GL_object.mPatchListSet);
     }
     else
     {
@@ -2977,9 +2983,6 @@ static void talpaPostUmount(int err, char __user * name, int flags, void* ctx)
     }
 
     talpa_syscallhook_modify_finish();
-
-    /* Free list showed to userspace so it will be regenerated on next read */
-    destroyStringSet(&GL_object, &GL_object.mPatchListSet);
 
     return;
 }
