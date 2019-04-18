@@ -91,7 +91,6 @@ struct patchedFilesystem
     atomic_t                usecnt; /* How many mountpoints are patched with this record */
     atomic_t                refcnt; /* How many hook functions (+1 for usecnt > 0) are currently using this patch */
     struct file_system_type *fstype;
-    talpa_simple_lock_t     lock; /* Held when modifying any stored pointers */
     struct inode_operations *i_ops;
     struct file_operations  *f_ops;
 #ifdef TALPA_HAS_SMBFS

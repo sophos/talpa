@@ -630,24 +630,22 @@ static int talpaInodeCreate(struct inode *inode, struct dentry *dentry, int mode
         if ( inode->i_op == p->i_ops )
         {
             err = 0;
-            patch = getPatch(p);
-            BUG_ON(NULL == patch->fstype);
+            BUG_ON(NULL == p->fstype);
 
-            if ( unlikely( create && ( create != patch->create ) ) )
+            if ( unlikely( create && ( create != p->create ) ) )
             {
-                DEBUG_info("WARNING: Mismatched create operations between patches %p != %p for %s", create, patch->create, patch->fstype->name );
+                DEBUG_info("WARNING: Mismatched create operations between patches %p != %p for %s", create, p->create, p->fstype->name );
             }
-            create = patch->create;
+            create = p->create;
 
             /* make sure we find the correct fstype to repatch */
-            if ( strcmp( inode->i_sb->s_type->name, patch->fstype->name ) != 0 )
+            if ( strcmp( inode->i_sb->s_type->name, p->fstype->name ) != 0 )
             {
-                dbg("Ignoring patch for %s, it's not %s", patch->fstype->name, inode->i_sb->s_type->name );
-                putPatch(patch);
-                patch = NULL;
+                dbg("Ignoring patch for %s, it's not %s", p->fstype->name, inode->i_sb->s_type->name );
                 continue;
             }
 
+            patch = getPatch(p);
             dbg("Found patch for %s", patch->fstype->name);
             break;
         }
@@ -692,6 +690,7 @@ static int talpaInodeCreate(struct inode *inode, struct dentry *dentry, int mode
                 IFileInfo *pFInfo;
 
                 DEBUG_info("talpaInodeCreate: got a dentry, repatching %s", patch->fstype->name);
+                /* We don't want to fail the InodeCreate if repatching fails, so ignore any errors here */
                 (void)lockAndRepatchFilesystem(dentry, patch);
 
                 /* Do not examine if we should not intercept opens or we are already examining one */
@@ -792,26 +791,23 @@ static struct dentry* talpaInodeLookup(struct inode *inode, struct dentry *dentr
         if ( inode->i_op == p->i_ops )
         {
             err = NULL;
-            patch = getPatch(p);
-            BUG_ON(NULL == patch->fstype);
+            BUG_ON(NULL == p->fstype);
 
-#ifdef DEBUG
-            if ( lookup && ( lookup != patch->lookup ) )
+            if ( unlikely( lookup && ( lookup != p->lookup ) ) )
             {
-                DEBUG_info("WARNING: Mismatched lookup operations between patches %p != %p for %s", lookup, patch->lookup, patch->fstype->name );
+                DEBUG_info("WARNING: Mismatched lookup operations between patches %p != %p for %s", lookup, p->lookup, p->fstype->name );
             }
-#endif
-            lookup = patch->lookup;
+
+            lookup = p->lookup;
 
             /* make sure we find the correct fstype to repatch */
-            if ( strcmp( inode->i_sb->s_type->name, patch->fstype->name ) != 0 )
+            if ( strcmp( inode->i_sb->s_type->name, p->fstype->name ) != 0 )
             {
-                dbg("Ignoring patch for %s, it's not %s", patch->fstype->name, inode->i_sb->s_type->name );
-                putPatch(patch);
-                patch = NULL;
+                dbg("Ignoring patch for %s, it's not %s", p->fstype->name, inode->i_sb->s_type->name );
                 continue;
             }
 
+            patch = getPatch(p);
             dbg("Found patch for %s", patch->fstype->name);
             break;
         }
@@ -1271,26 +1267,23 @@ static int talpaAtomicOpen(struct inode* inode, struct dentry* dentry,
         if ( inode->i_op == p->i_ops )
         {
             resultCode = 0;
-            patch = getPatch(p);
-            BUG_ON(NULL == patch->fstype);
+            BUG_ON(NULL == p->fstype);
 
-#ifdef DEBUG
-            if ( atomic_open && ( atomic_open != patch->atomic_open ) )
+            if ( unlikely( atomic_open && ( atomic_open != p->atomic_open ) ) )
             {
-                DEBUG_info("WARNING: Mismatched atomic_open operations between patches %p != %p for %s", atomic_open, patch->atomic_open, patch->fstype->name );
+                DEBUG_info("WARNING: Mismatched atomic_open operations between patches %p != %p for %s", atomic_open, p->atomic_open, p->fstype->name );
             }
-#endif
-            atomic_open = patch->atomic_open;
+
+            atomic_open = p->atomic_open;
 
             /* make sure we find the correct fstype to repatch */
-            if ( strcmp( inode->i_sb->s_type->name, patch->fstype->name ) != 0 )
+            if ( strcmp( inode->i_sb->s_type->name, p->fstype->name ) != 0 )
             {
-                dbg("Ignoring patch for %s, it's not %s", patch->fstype->name, inode->i_sb->s_type->name );
-                putPatch(patch);
-                patch = NULL;
+                dbg("Ignoring patch for %s, it's not %s", p->fstype->name, inode->i_sb->s_type->name );
                 continue;
             }
 
+            patch = getPatch(p);
             dbg("Found patch for %s", patch->fstype->name);
             break;
         }
@@ -1816,36 +1809,63 @@ static int patchFilesystem(struct vfsmount* mnt, struct dentry* dentry, bool smb
 
 static int lockAndRepatchFilesystem(struct dentry* dentry, struct patchedFilesystem* patch)
 {
-    int err = 0;
+    int ret = 0;
+    bool smbfs = false;
+    struct patchedFilesystem* p;
+
+    /* callers should check that repatching is necessary! */
+#ifdef DEBUG
+    if ( patch->f_ops && (patch->f_ops->open == talpaOpen) )
+    {
+        err("Filesystem %s already patched, no repatching necessary", patch->fstype->name);
+        return 0;
+    }
+#endif
 
     /* Re-patch, this time using file operations */
-    if (!talpa_syscallhook_modify_start())
-    {
-        bool smbfs = false;
-
-
-#ifdef TALPA_HAS_SMBFS
-        if ( !strcmp(patch->fstype->name, "smbfs") )
-        {
-            smbfs = true;
-        }
-#endif
-        /* repatchFilesystem needs patch list lock held... */
-        talpa_rcu_read_lock(&GL_object.mPatchLock);
-        /* ... and patch lock itself. */
-        talpa_simple_lock(&patch->lock);
-        (void)repatchFilesystem(dentry, smbfs, patch); /* Ref count has already been increased when i_ops were patched */
-        talpa_simple_unlock(&patch->lock);
-        talpa_rcu_read_unlock(&GL_object.mPatchLock);
-        talpa_syscallhook_modify_finish();
-    }
-    else
+    ret = talpa_syscallhook_modify_start();
+    if ( unlikely( ret ) )
     {
         err("Failed to unprotect memory during lockAndRepatchFilesystem!");
-        err = -ENOMEM;
+        ret = -ENOMEM;
+        return ret;
     }
 
-    return err;
+    /* repatchFilesystem needs patch list lock held... */
+    talpa_rcu_write_lock(&GL_object.mPatchLock);
+
+    /* re-fetch the patch to ensure that it's still valid */
+    ret = -ESRCH;
+    talpa_list_for_each_entry_rcu(p, &GL_object.mPatches, head)
+    {
+        if ( patch->fstype == p->fstype )
+        {
+            patch = p;
+            ret = 0;
+            break;
+        }
+    }
+    if ( unlikely( ret ) )
+    {
+        warn("Patch went away while repatching %s", patch->fstype->name);
+        talpa_rcu_write_unlock(&GL_object.mPatchLock);
+        talpa_syscallhook_modify_finish();
+        return ret;
+    }
+
+#ifdef TALPA_HAS_SMBFS
+    if ( !strcmp(patch->fstype->name, "smbfs") )
+    {
+        smbfs = true;
+    }
+#endif
+
+    (void)repatchFilesystem(dentry, smbfs, patch); /* Ref count has already been increased when i_ops were patched */
+
+    talpa_rcu_write_unlock(&GL_object.mPatchLock);
+    talpa_syscallhook_modify_finish();
+
+    return ret;
 }
 
 static bool repatchFilesystem(struct dentry* dentry, bool smbfs, struct patchedFilesystem* patch)
@@ -2323,13 +2343,9 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
         atomic_set(&patch->usecnt, 0);
         atomic_set(&patch->refcnt, 1);
         patch->fstype = mnt->mnt_sb->s_type;
-        talpa_simple_init(&patch->lock);
         patch->mHookDOps = hook_dops;
         patch->mLookupCreateHooked = false;
     }
-
-    /* Lock patch record for manipulation */
-    talpa_simple_lock(&patch->lock);
 
     /* prepareFilesystem knows how to handle different situations */
     ret = prepareFilesystem(mnt, reg, smbfs, patch);
@@ -2354,12 +2370,10 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
             {
                 DEBUG_info("  refcnt for %s = %d", fsname, atomic_read(&patch->refcnt));
                 atomic_add(propagationCount, &patch->usecnt);
-                talpa_simple_unlock(&patch->lock);
             }
             else
             {
                 warn("Failed to process filesystem due to inability to patch! (%d)", ret);
-                talpa_simple_unlock(&patch->lock);
                 talpa_list_del_rcu(&patch->head);
                 talpa_free(newpatch);
                 newpatch = NULL; patch = NULL;
@@ -2378,7 +2392,6 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
             {
                 DEBUG_info("  usecnt for %s stayed %d", fsname, atomic_read(&patch->usecnt));
             }
-            talpa_simple_unlock(&patch->lock);
         }
 
         if ( likely( patch ) )
@@ -2391,8 +2404,6 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
     }
     else
     {
-        talpa_simple_unlock(&patch->lock);
-
         /* Free newly allocated patch if preparing to patch failed */
         if ( patch == newpatch )
         {
@@ -2981,9 +2992,7 @@ static void talpaPostUmount(int err, char __user * name, int flags, void* ctx)
             if ( atomic_dec_and_test(&patch->usecnt) )
             {
                 DEBUG_info("usecnt for %s reached zero, unpatching", patch->fstype->name);
-                talpa_simple_lock(&patch->lock);
                 restoreFilesystem(patch);
-                talpa_simple_unlock(&patch->lock);
                 talpa_list_del_rcu(&patch->head);
                 talpa_rcu_write_unlock(&GL_object.mPatchLock);
                 atomic_dec(&patch->refcnt);
@@ -3115,9 +3124,7 @@ nextpatch:
     talpa_list_for_each_entry_rcu(p, &this->mPatches, head)
     {
         DEBUG_info("Restoring %s", p->fstype->name);
-        talpa_simple_lock(&p->lock);
         restoreFilesystem(p);
-        talpa_simple_unlock(&p->lock);
         talpa_list_del_rcu(&p->head);
         talpa_rcu_write_unlock(&this->mPatchLock);
         atomic_dec(&p->refcnt);
