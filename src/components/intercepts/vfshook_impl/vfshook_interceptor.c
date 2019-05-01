@@ -26,6 +26,9 @@
 #include <linux/unistd.h>
 
 #include <linux/mount.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+#include <uapi/linux/mount.h>
+#endif
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/fs_struct.h>
