@@ -34,8 +34,8 @@ typedef struct
     int     (*close)        (void* self);
     loff_t  (*length)       (const void* self);
     loff_t  (*seek)         (void* self, loff_t offset, int whence);
-    ssize_t (*read)         (void* self, void* data, size_t count);
-    ssize_t (*write)        (void* self, const void* data, size_t count);
+    ssize_t (*read)         (void* self, void __user * data, size_t count);
+    ssize_t (*write)        (void* self, const void __user * data, size_t count);
     int     (*unlink)       (void* self);
     int     (*truncate)     (void* self, loff_t);
     /*

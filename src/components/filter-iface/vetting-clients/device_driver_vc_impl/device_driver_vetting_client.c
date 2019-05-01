@@ -39,12 +39,12 @@
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,3,0)
-    int sophos_misc_deregister(struct miscdevice *misc)
+    static int sophos_misc_deregister(struct miscdevice *misc)
     {
         return misc_deregister(misc);
     }
 #else
-    int sophos_misc_deregister(struct miscdevice *misc)
+    static int sophos_misc_deregister(struct miscdevice *misc)
     {
         misc_deregister(misc);
         return 0;
@@ -62,8 +62,8 @@
  */
 static int ddvcOpen(struct inode* inode, struct file* file);
 static int ddvcClose(struct inode* inode, struct file* file);
-static ssize_t ddvcRead(struct file* file, char* buf, size_t len, loff_t* ppos);
-static ssize_t ddvcWrite(struct file* file, const char* buf, size_t len, loff_t* ppos);
+static ssize_t ddvcRead(struct file* file, char __user * buf, size_t len, loff_t* ppos);
+static ssize_t ddvcWrite(struct file* file, const char __user * buf, size_t len, loff_t* ppos);
 #ifdef HAVE_UNLOCKED_IOCTL
 static long ddvcIoctl(struct file* file, unsigned int cmd, unsigned long arg);
 #else
@@ -116,20 +116,20 @@ static DeviceDriverVettingClient GL_object =
  */
 static struct file_operations ddvc_fops =
 {
-    owner:          THIS_MODULE,
-    open:           ddvcOpen,
-    release:        ddvcClose,
-    read:           ddvcRead,
-    write:          ddvcWrite,
+    .owner =          THIS_MODULE,
+    .open =           ddvcOpen,
+    .release =        ddvcClose,
+    .read =           ddvcRead,
+    .write =          ddvcWrite,
 #ifdef HAVE_UNLOCKED_IOCTL
-    unlocked_ioctl: ddvcIoctl,
+    .unlocked_ioctl = ddvcIoctl,
 #ifdef HAVE_COMPAT_IOCTL
-    compat_ioctl:   ddvcIoctl,
+    .compat_ioctl =   ddvcIoctl,
 #endif
 #else
-    ioctl:          ddvcIoctl,
+    .ioctl =          ddvcIoctl,
 #endif
-    poll:           ddvcPoll
+    .poll =           ddvcPoll
 };
 
 static struct miscdevice ddvc_dev=
@@ -410,7 +410,7 @@ static int ddvcClose(struct inode* inode, struct file* file)
     return 0;
 }
 
-static ssize_t ddvcRead(struct file* file, char* buf, size_t len, loff_t* ppos)
+static ssize_t ddvcRead(struct file* file, char __user * buf, size_t len, loff_t* ppos)
 {
     IVettingServer* server = GL_object.mServer;
     VettingClient* client = (VettingClient *)file->private_data;
@@ -484,7 +484,7 @@ static ssize_t ddvcRead(struct file* file, char* buf, size_t len, loff_t* ppos)
     return ret;
 }
 
-static ssize_t ddvcWrite(struct file* file, const char* buf, size_t len, loff_t* ppos)
+static ssize_t ddvcWrite(struct file* file, const char __user * buf, size_t len, loff_t* ppos)
 {
     IVettingServer* server = GL_object.mServer;
     VettingClient* client = (VettingClient *)file->private_data;
@@ -556,21 +556,21 @@ static int ddvcIoctl(struct inode* inode, struct file* file, unsigned int cmd, u
     switch ( cmd )
     {
         case TLPVCIOC_REGISTER:
-            ret = copy_from_user(state->packet, (void *)arg, sizeof(struct TalpaPacket_Register));
+            ret = copy_from_user(state->packet, (void __user *)arg, sizeof(struct TalpaPacket_Register));
             if ( !ret )
             {
                 response = server->registerClient(server->object, client, (struct TalpaPacket_Register *)state->packet);
             }
             break;
         case TLPVCIOC_DEREGISTER:
-            ret = copy_from_user(state->packet, (void *)arg, sizeof(struct TalpaPacket_Deregister));
+            ret = copy_from_user(state->packet, (void __user *)arg, sizeof(struct TalpaPacket_Deregister));
             if ( !ret )
             {
                 response = server->deregisterClient(server->object, client, (struct TalpaPacket_Deregister *)state->packet);
             }
             break;
         case TLPVCIOC_SETWAITTIMEOUT:
-            ret = copy_from_user(state->packet, (void *)arg, sizeof(struct TalpaPacket_SetWaitTimeout));
+            ret = copy_from_user(state->packet, (void __user *)arg, sizeof(struct TalpaPacket_SetWaitTimeout));
             if ( !ret )
             {
                 response = server->setWaitTimeout(server->object, client, (struct TalpaPacket_SetWaitTimeout *)state->packet);
@@ -649,7 +649,7 @@ static const char* config(const void* self, const char* name)
     {
         return cfgElement->value;
     }
-    return 0;
+    return NULL;
 }
 
 static void  setConfig(void* self, const char* name, const char* value)

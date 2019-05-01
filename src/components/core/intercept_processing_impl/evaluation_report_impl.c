@@ -133,7 +133,7 @@ static void* customData(const void* self, int id, int* size)
         }
     }
     *size = 0;
-    return 0;
+    return NULL;
 }
 
 static void setCustomData(void* self, int id, void* data, int size)

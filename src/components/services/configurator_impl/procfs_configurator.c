@@ -51,11 +51,11 @@ static int ctlHandler(ctl_table* table, int* name, int nlen, void* oldvalue, siz
   #endif
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
-static int procHandler(ctl_table* table, int write, void* buffer, size_t* lenp, loff_t* ppos);
+static int procHandler(ctl_table* table, int write, void __user * buffer, size_t* lenp, loff_t* ppos);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,8)
-static int procHandler(ctl_table* table, int write, struct file* filp, void* buffer, size_t* lenp, loff_t* ppos);
+static int procHandler(ctl_table* table, int write, struct file* filp, void __user * buffer, size_t* lenp, loff_t* ppos);
 #else
-static int procHandler(ctl_table* table, int write, struct file* filp, void* buffer, size_t* lenp);
+static int procHandler(ctl_table* table, int write, struct file* filp, void __user * buffer, size_t* lenp);
 #endif
 
 /*
@@ -397,13 +397,13 @@ static int ctlHandler(ctl_table* table, int* name, int nlen, void* oldvalue, siz
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
 #define PPOS *ppos
-static int procHandler(ctl_table* table, int write, void* buffer, size_t* lenp, loff_t* ppos)
+static int procHandler(ctl_table* table, int write, void __user * buffer, size_t* lenp, loff_t* ppos)
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,8)
 #define PPOS *ppos
-static int procHandler(ctl_table* table, int write, struct file* filp, void* buffer, size_t* lenp, loff_t* ppos)
+static int procHandler(ctl_table* table, int write, struct file* filp, void __user * buffer, size_t* lenp, loff_t* ppos)
 #else
 #define PPOS filp->f_pos
-static int procHandler(ctl_table* table, int write, struct file* filp, void* buffer, size_t* lenp)
+static int procHandler(ctl_table* table, int write, struct file* filp, void __user * buffer, size_t* lenp)
 #endif
 {
     if (!table->data || !table->maxlen || !*lenp)
@@ -414,7 +414,7 @@ static int procHandler(ctl_table* table, int write, struct file* filp, void* buf
     if (write)
     {
         size_t  len;
-        char*   p;
+        char __user *   p;
         char    c;
         char*   cfgValue;
 
@@ -493,7 +493,7 @@ static int procHandler(ctl_table* table, int write, struct file* filp, void* buf
         }
         if ( extraNewLine > 0 )
         {
-            if( put_user('\n', ((char *) buffer) + amountToCopy - extraNewLine) )
+            if( put_user('\n', ((char __user *) buffer) + amountToCopy - extraNewLine) )
             {
                 return -EFAULT;
             }

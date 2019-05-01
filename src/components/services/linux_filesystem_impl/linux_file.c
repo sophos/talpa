@@ -69,8 +69,8 @@ static bool    isWritable   (const void* self);
 static int     close        (void* self);
 static loff_t  length       (const void* self);
 static loff_t  seek         (void* self, loff_t offset, int whence);
-static ssize_t read         (void* self, void* data, size_t count);
-static ssize_t write        (void* self, const void* data, size_t count);
+static ssize_t read         (void* self, void __user * data, size_t count);
+static ssize_t write        (void* self, const void __user * data, size_t count);
 static int     unlink       (void* self);
 static int     truncate     (void* self, loff_t length);
 
@@ -553,7 +553,7 @@ static loff_t seek(void* self, loff_t offset, int whence)
     return res;
 }
 
-static ssize_t read(void* self, void* data, size_t count)
+static ssize_t read(void* self, void __user * data, size_t count)
 {
     struct file* file = this->mFile;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
@@ -587,7 +587,7 @@ static ssize_t read(void* self, void* data, size_t count)
     return retval;
 }
 
-static ssize_t write(void* self, const void* data, size_t count)
+static ssize_t write(void* self, const void __user * data, size_t count)
 {
     struct file* file = this->mFile;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
