@@ -10,7 +10,7 @@ EXTRA_CFLAGS += -I$(src)/../../src -I$(src)/../../src/ifaces -I$(src)/../../incl
 		@dpath@ \
 		@printkaddr@ \
 		@dotruncatetype@ @dotruncateaddr@ \
-		@has_retpoline@ \
+		@check_retpoline@ \
 		@tasknewtty@ \
 		@rcubackport@ \
 		@mutexes@ \

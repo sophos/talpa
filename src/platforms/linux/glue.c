@@ -143,7 +143,6 @@ char* talpa__d_namespace_path( struct dentry *dentry, struct vfsmount *vfsmnt,
 {
     char* path;
 
-
 #ifdef TALPA_MNT_NAMESPACE
     struct vfsmount *ns_root_mnt = NULL;
     struct dentry *ns_root_dentry;
@@ -153,63 +152,83 @@ char* talpa__d_namespace_path( struct dentry *dentry, struct vfsmount *vfsmnt,
     struct task_struct* proc;
 
     proc = current;
-    talpa_proc_fs_lock(&proc->fs->lock);
-    process_root_mnt = mntget(talpa_task_root_mnt(proc));
-    process_root_dentry = dget(talpa_task_root_dentry(proc));
-    talpa_proc_fs_unlock(&proc->fs->lock);
-
-    if (inProcessNamespaceOut)
+    if ( likely(proc->fs != NULL) )
     {
-        *inProcessNamespaceOut = (getNamespaceInfo(vfsmnt) == proc->nsproxy->mnt_ns);
-    }
+        talpa_proc_fs_lock(&proc->fs->lock);
+        process_root_mnt = mntget(talpa_task_root_mnt(proc));
+        process_root_dentry = dget(talpa_task_root_dentry(proc));
+        talpa_proc_fs_unlock(&proc->fs->lock);
 
-    talpa_vfsmount_lock(&m_seq);
-    if (getNamespaceInfo(process_root_mnt))
-    {
-        ns_root_mnt = mntget(getNamespaceRoot(process_root_mnt));
-    }
-    talpa_vfsmount_unlock(&m_seq);
-
-    dbg("root dentry %s dentry=%p vfsmnt=%p",process_root_dentry->d_name.name,process_root_dentry,process_root_mnt);
-
-    if(ns_root_mnt)
-    {
-        ns_root_dentry = dget(ns_root_mnt->mnt_root);
-        dbg("ns_root_dentry %s dentry=%p vfsmnt=%p",ns_root_dentry->d_name.name,ns_root_dentry,ns_root_mnt);
-
-        path = talpa__d_path(dentry, vfsmnt, ns_root_dentry, ns_root_mnt,
-            buffer, buflen, NULL);
-        dbg("talpa__d_namespace_path: found d_namespace_path: %s", path);
-
-        if (nonRootNamespaceOut)
+        if (inProcessNamespaceOut)
         {
-            *nonRootNamespaceOut = (ns_root_mnt != rootmnt);
+            if ( likely( proc->nsproxy != NULL ) )
+            {
+                *inProcessNamespaceOut = (getNamespaceInfo(vfsmnt) == proc->nsproxy->mnt_ns);
+            }
+            else
+            {
+                *inProcessNamespaceOut = false;
+            }
         }
-        dput(ns_root_dentry);
 
-        mntput(ns_root_mnt);
+        talpa_vfsmount_lock(&m_seq);
+        if (getNamespaceInfo(process_root_mnt))
+        {
+            ns_root_mnt = mntget(getNamespaceRoot(process_root_mnt));
+        }
+        talpa_vfsmount_unlock(&m_seq);
+
+        dbg("root dentry %s dentry=%p vfsmnt=%p",process_root_dentry->d_name.name,process_root_dentry,process_root_mnt);
+
+        if(ns_root_mnt)
+        {
+            ns_root_dentry = dget(ns_root_mnt->mnt_root);
+            dbg("ns_root_dentry %s dentry=%p vfsmnt=%p",ns_root_dentry->d_name.name,ns_root_dentry,ns_root_mnt);
+
+            path = talpa__d_path(dentry, vfsmnt, ns_root_dentry, ns_root_mnt,
+                buffer, buflen, NULL);
+            dbg("talpa__d_namespace_path: found d_namespace_path: %s", path);
+
+            if (nonRootNamespaceOut)
+            {
+                *nonRootNamespaceOut = (ns_root_mnt != rootmnt);
+            }
+            dput(ns_root_dentry);
+
+            mntput(ns_root_mnt);
+
+        }
+        else
+        {
+            path = talpa__d_path(dentry, vfsmnt, process_root_dentry, process_root_mnt,
+                buffer, buflen, nonRootNamespaceOut);
+            dbg("talpa__d_namespace_path: found non namespace path: %s", path);
+
+        }
+        dput(process_root_dentry);
+        mntput(process_root_mnt);
 
     }
     else
     {
-        path = talpa__d_path(dentry, vfsmnt, process_root_dentry, process_root_mnt,
-            buffer, buflen, nonRootNamespaceOut);
-        dbg("talpa__d_namespace_path: found non namespace path: %s", path);
+        dbg("proc->fs == NULL, cannot get namespace path");
 
-    }
-    dput(process_root_dentry);
-    mntput(process_root_mnt);
-
-#else /* TALPA_MNT_NAMESPACE */
-    if (inProcessNamespaceOut)
+        if (inProcessNamespaceOut)
+        {
+            *inProcessNamespaceOut = false;
+        }
+#else /* !TALPA_MNT_NAMESPACE */
     {
-        *inProcessNamespaceOut = true;
-    }
-
-    path = talpa__d_path(dentry, vfsmnt, root, rootmnt,
-            buffer, buflen, nonRootNamespaceOut);
-    dbg("talpa__d_namespace_path: found non namespace path: %s", path);
+        if (inProcessNamespaceOut)
+        {
+            *inProcessNamespaceOut = true;
+        }
 #endif
+
+        path = talpa__d_path(dentry, vfsmnt, root, rootmnt,
+                buffer, buflen, nonRootNamespaceOut);
+        dbg("talpa__d_namespace_path: found non namespace path: %s", path);
+    }
 
     return path;
 }
@@ -533,12 +552,12 @@ void talpa_putname(TALPA_FILENAME_T* filename)
 #endif
 
 #ifndef TALPA_GETNAME_EXPORTED
-TALPA_FILENAME_T * talpa_getname(const char * filename )
+TALPA_FILENAME_T * talpa_getname(const char __user * filename )
 {
     /*
      * Uses putname if available, or final_putname - but they come from the same define
      */
-    typedef TALPA_FILENAME_T * (*getname_func)(const char * filename);
+    typedef TALPA_FILENAME_T * (*getname_func)(const char __user * filename);
     getname_func getname = (getname_func)talpa_get_symbol("getname", (void *)TALPA_GETNAME_ADDRESS);
     return(getname(filename));
 }
@@ -564,10 +583,12 @@ void talpa_get_fs_root_and_pwd(
 void* getUtsNamespace(struct task_struct* process)
 {
 #ifdef TALPA_MNT_NAMESPACE
-    return (void*) process->nsproxy->uts_ns;
-#else
-    return NULL;
+    if ( likely(process->nsproxy != NULL) )
+    {
+        return (void*) process->nsproxy->uts_ns;
+    }
 #endif
+    return NULL;
 }
 
 /*

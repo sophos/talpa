@@ -282,7 +282,7 @@ static ssize_t securityfsWrite(struct file *file, const char __user *buf, size_t
     IConfigurable *item;
     char *data;
     size_t len;
-    const char *p;
+    const char __user *p;
     char c;
 
 

@@ -778,7 +778,7 @@ static const char* config(const void* self, const char* name)
 
         return retstring;
     }
-    return 0;
+    return NULL;
 }
 
 static void  setConfig(void* self, const char* name, const char* value)

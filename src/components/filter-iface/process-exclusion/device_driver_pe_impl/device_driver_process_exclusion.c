@@ -39,12 +39,12 @@
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,3,0)
-    int sophos_misc_deregister(struct miscdevice *misc)
+    static int sophos_misc_deregister(struct miscdevice *misc)
     {
         return misc_deregister(misc);
     }
 #else
-    int sophos_misc_deregister(struct miscdevice *misc)
+    static int sophos_misc_deregister(struct miscdevice *misc)
     {
         misc_deregister(misc);
         return 0;
@@ -128,16 +128,16 @@ static DeviceDriverProcessExclusion GL_object =
  */
 static struct file_operations ddpe_fops =
 {
-    owner:          THIS_MODULE,
-    open:           ddpeOpen,
-    release:        ddpeClose,
+    .owner =          THIS_MODULE,
+    .open =           ddpeOpen,
+    .release =        ddpeClose,
 #ifdef HAVE_UNLOCKED_IOCTL
-    unlocked_ioctl: ddpeIoctl,
+    .unlocked_ioctl = ddpeIoctl,
 #ifdef HAVE_COMPAT_IOCTL
-    compat_ioctl:   ddpeIoctl,
+    .compat_ioctl =   ddpeIoctl,
 #endif
 #else
-    ioctl:          ddpeIoctl,
+    .ioctl =          ddpeIoctl,
 #endif
 };
 
@@ -561,7 +561,7 @@ static const char* config(const void* self, const char* name)
     {
         return cfgElement->value;
     }
-    return 0;
+    return NULL;
 }
 
 static void  setConfig(void* self, const char* name, const char* value)

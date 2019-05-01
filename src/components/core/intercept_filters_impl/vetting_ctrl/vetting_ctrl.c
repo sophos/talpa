@@ -2192,7 +2192,7 @@ static struct TalpaProtocolHeader* streamRead(void* self, VettingClient* client,
     }
 
     job->externalOperation = true;
-    ret = job->file->read(job->file->object, (unsigned char *)client->stream + sizeof(struct TalpaPacket_StreamData), packet->size);
+    ret = job->file->read(job->file->object, (unsigned char __user *)client->stream + sizeof(struct TalpaPacket_StreamData), packet->size);
     job->externalOperation = false;
     dbg("read %d bytes", ret);
 
@@ -2237,7 +2237,7 @@ static struct TalpaProtocolHeader* streamWrite(void* self, VettingClient* client
     streamMaybeReopenWritable(job);
     dbg("write %lld bytes", ( long long int ) packet->size);
     job->externalOperation = true;
-    ret = job->file->write(job->file->object, (unsigned char *)packet + sizeof(struct TalpaPacket_StreamWrite), packet->size);
+    ret = job->file->write(job->file->object, (unsigned char __user *)packet + sizeof(struct TalpaPacket_StreamWrite), packet->size);
     job->externalOperation = false;
 
     if ( ret < 0 )
@@ -2275,7 +2275,7 @@ static struct TalpaProtocolHeader* streamReadAt(void* self, VettingClient* clien
     }
 
     job->externalOperation = true;
-    ret = job->file->read(job->file->object, (unsigned char *)client->stream + sizeof(struct TalpaPacket_StreamData), packet->size);
+    ret = job->file->read(job->file->object, (unsigned char __user *)client->stream + sizeof(struct TalpaPacket_StreamData), packet->size);
     job->externalOperation = false;
     dbg("read %d bytes", ret);
 
@@ -2313,7 +2313,7 @@ static struct TalpaProtocolHeader* streamWriteAt(void* self, VettingClient* clie
     dbg("write %lld bytes", (long long int) packet->size);
 
     job->externalOperation = true;
-    ret = job->file->write(job->file->object, (unsigned char *)packet + sizeof(struct TalpaPacket_StreamWriteAt), packet->size);
+    ret = job->file->write(job->file->object, (unsigned char __user *)packet + sizeof(struct TalpaPacket_StreamWriteAt), packet->size);
     job->externalOperation = false;
 
     if ( ret < 0 )

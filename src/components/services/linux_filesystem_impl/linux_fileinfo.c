@@ -178,7 +178,7 @@ LinuxFileInfo* newLinuxFileInfo(EFilesystemOperation operation, const char* file
 
     if (unlikely(object->mFilename == NULL))
     {
-        critical("newLinuxFileInfo: talpa__d_path returned NULL");
+        critical("newLinuxFileInfo: talpa__d_namespace_path returned NULL");
     }
     object->mOperation = operation;
     object->mFlags = flags;
@@ -237,7 +237,7 @@ LinuxFileInfo* newLinuxFileInfoFromFd(EFilesystemOperation operation, int fd)
                         object->mPath, path_size, &object->mIsNonRootNamespace, &object->mIsInProcessMntNamespace);
             if (unlikely(object->mFilename == NULL))
             {
-                critical("newLinuxFileInfoFromFd: talpa__d_path returned NULL");
+                critical("newLinuxFileInfoFromFd: talpa__d_namespace_path returned NULL");
             }
 
             object->mOperation = operation;
@@ -316,6 +316,10 @@ LinuxFileInfo* newLinuxFileInfoFromFile(EFilesystemOperation operation, void* fi
     fi->mFilename = talpa__d_namespace_path(file->f_dentry, file->f_vfsmnt,
                 root->directoryEntry(root->object), root->mountPoint(root->object),
                 fi->mPath, path_size, &fi->mIsNonRootNamespace, &fi->mIsInProcessMntNamespace);
+    if (unlikely(fi->mFilename == NULL))
+    {
+        critical("newLinuxFileInfoFromFile: talpa__d_namespace_path returned NULL");
+    }
 
     fi->mOperation = operation;
     fi->mFlags = file->f_flags;
@@ -378,7 +382,7 @@ LinuxFileInfo* newLinuxFileInfoFromDirectoryEntry(EFilesystemOperation operation
                 fi->mPath, path_size, &fi->mIsNonRootNamespace, &fi->mIsInProcessMntNamespace);
     if (unlikely(fi->mFilename == NULL))
     {
-        critical("newLinuxFileInfoFromDirectoryEntry: talpa__d_path returned NULL");
+        critical("newLinuxFileInfoFromDirectoryEntry: talpa__d_namespace_path returned NULL");
     }
 
     fi->mOperation = operation;

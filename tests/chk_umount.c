@@ -112,11 +112,20 @@ int main(int argc, char *argv[])
 
     wait(&status);
 
+    if ( details->header.type != TALPA_PKT_FILESYSTEMDETAIL )
+    {
+        fprintf(stderr, "Didn't get TALPA_PKT_FILESYSTEMDETAIL type: %x != %x!\n",
+            details->header.type, TALPA_PKT_FILESYSTEMDETAIL );
+        vc_exit(talpa);
+        return -1;
+    }
+
     fsdetails = vc_filesystem_frag(details);
 
     if ( fsdetails->operation != TALPA_UMOUNT )
     {
-        fprintf(stderr, "Didn't get TALPA_UMOUNT operation: %d != %d!\n", fsdetails->operation, TALPA_UMOUNT );
+        fprintf(stderr, "Didn't get TALPA_UMOUNT operation: %d != %d!\n",
+            fsdetails->operation, TALPA_UMOUNT );
         vc_exit(talpa);
         return -1;
     }
