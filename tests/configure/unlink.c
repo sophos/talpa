@@ -10,6 +10,10 @@
 #include <linux/posix_types.h>
 #endif
 
+#ifdef HAVE_KCONFIG
+#include <linux/kconfig.h>
+#endif
+
 #include <linux/fs.h>
 
 int main()

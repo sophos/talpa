@@ -713,6 +713,14 @@ if test "$tmp" = "1"; then
         kernccflags="${kernccflags} -D__XEN_INTERFACE_VERSION__=${tmp}"
     fi
 fi
+
+# kconfig.h present since vanilla 3.10.0 and RHEL 6 2.6.32-754.14.2
+TALPA_LOCATE_HEADER(linux/kconfig.h, $kernelhdrspath, kconfigfound=yes, kconfigfound=no)
+AC_MSG_RESULT([$kconfigfound - $TALPA_HEADER_LOCATION])
+if test "$kconfigfound" = "yes" ; then
+    kernccflags="${kernccflags} -DHAVE_KCONFIG"
+fi
+
 AC_MSG_RESULT([done])
 
 if test "$xen" = "1"; then
