@@ -943,6 +943,9 @@ fi
 if test ! -f "$system_map"; then
     AC_MSG_ERROR([$system_map not found])
     system_map=""
+elif test ! -r "$system_map"; then
+    AC_MSG_ERROR([$system_map not readable])
+    system_map=""
 else
     AC_MSG_RESULT([$system_map])
 fi
