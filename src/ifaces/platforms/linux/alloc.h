@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2016 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -70,7 +70,7 @@ static inline void talpa_large_free(void *ptr)
 
 static inline char *talpa_alloc_path_order(unsigned int order, size_t *size)
 {
-    unsigned int mask = GFP_KERNEL;
+    gfp_t mask = GFP_KERNEL;
 
 
     if ( unlikely(order > 0) )

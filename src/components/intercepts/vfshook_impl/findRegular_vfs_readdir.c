@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -329,8 +329,15 @@ static struct dentry *scanDirectory(const char* dirname, char* rootbuf, size_t r
     dc->root = rootbuf;
     dc->bufsize = bufsize;
     dc->dirent = buf;
+
+    dc->rootlen = strlen(dirname);
+    if ( dc->rootlen >= dc->rootsize )
+    {
+        dbg("dirname of length %u longer than root buffer of size %lu", dc->rootlen, (long unsigned int)dc->rootsize);
+        *overflow = true;
+        goto out;
+    }
     strcpy(dc->root, dirname);
-    dc->rootlen = strlen(dc->root);
 
     dbg("root at %s, max path %lu bytes", dc->root, (long unsigned int)dc->bufsize);
 rescan:
@@ -459,7 +466,8 @@ struct dentry *findRegular(struct vfsmount* root)
     char *path, *name;
     size_t path_size = 0;
     bool overflow;
-    char *rootbuf, *buf;
+    char *rootbuf = NULL;
+    char *buf = NULL;
     size_t root_size = 0;
     unsigned int dir_order;
     unsigned int mnt_order;
@@ -476,7 +484,7 @@ struct dentry *findRegular(struct vfsmount* root)
     }
 
     /* Now scan the mount point path */
-    for (dir_order = 0; dir_order <= TALPA_MAX_ORDER; dir_order++)
+    for (dir_order = mnt_order; dir_order <= TALPA_MAX_ORDER; dir_order++)
     {
         rootbuf = talpa_alloc_path_order(dir_order, &root_size);
         buf = talpa_alloc_path_order(dir_order, &path_size);
@@ -492,7 +500,9 @@ struct dentry *findRegular(struct vfsmount* root)
             /* Try with a larger buffer */
             dbg("order %u is insufficient", dir_order);
             talpa_free_path_order(rootbuf, dir_order);
+            rootbuf = NULL;
             talpa_free_path_order(buf, dir_order);
+            buf = NULL;
             continue;
         }
         if (reg)
