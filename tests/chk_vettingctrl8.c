@@ -1,7 +1,7 @@
 /*
  * TALPA test program
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -164,19 +164,37 @@ int main(int argc, char *argv[])
     {
         /* Check if children are alive */
         rc = waitpid(scanner, &status, WNOHANG);
-        if ( rc && (WIFEXITED(status) || WIFSIGNALED(status)) )
-        {
-            fprintf(stderr, "Scanner error (%d, %d, %d)!\n", rc, WIFEXITED(status), WIFSIGNALED(status));
-            ret = -10;
-            break;
-        }
+        if ( rc )
+		{
+			if ( WIFEXITED(status) )
+			{
+				fprintf(stderr, "Scanner (%d) exited with status: %d!\n", rc, WEXITSTATUS(status));
+				ret = -10;
+				break;
+			}
+			else if ( WIFSIGNALED(status) )
+			{
+				fprintf(stderr, "Scanner (%d) terminated by signal: %d!\n", rc, WTERMSIG(status));
+				ret = -11;
+				break;
+			}
+		}
         rc = waitpid(opener, &status, WNOHANG);
-        if ( rc && (WIFEXITED(status) || WIFSIGNALED(status)) )
-        {
-            fprintf(stderr, "Opener error (%d, %d, %d)!\n", rc, WIFEXITED(status), WIFSIGNALED(status));
-            ret = -20;
-            break;
-        }
+			if ( rc )
+		{
+			if ( WIFEXITED(status) )
+			{
+				fprintf(stderr, "Opener (%d) exited with status: %d!\n", rc, WEXITSTATUS(status));
+				ret = -20;
+				break;
+			}
+			else if ( WIFSIGNALED(status) )
+			{
+				fprintf(stderr, "Opener (%d) terminated by signal: %d!\n", rc, WTERMSIG(status));
+				ret = -21;
+				break;
+			}
+		}
 
         /* Send a signal to opener */
         kill(opener, SIGUSR1);
