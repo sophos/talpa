@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -375,7 +375,7 @@ struct dentry *findRegular(struct vfsmount* root)
     char *path, *name;
     size_t path_size = 0;
     bool overflow;
-    char *buf;
+    char *buf = NULL;
     size_t root_size = 0;
     unsigned int dir_order;
     unsigned int mnt_order;
@@ -393,7 +393,7 @@ struct dentry *findRegular(struct vfsmount* root)
     }
 
     /* Now scan the mount point path */
-    for (dir_order = 0; dir_order <= TALPA_MAX_ORDER; dir_order++)
+    for (dir_order = mnt_order; dir_order <= TALPA_MAX_ORDER; dir_order++)
     {
         buf = talpa_alloc_path_order(dir_order, &path_size);
         if ( !buf )
@@ -411,6 +411,7 @@ struct dentry *findRegular(struct vfsmount* root)
             /* Try with a larger buffer */
             err("order %u is insufficient", dir_order);
             talpa_free_path_order(buf, dir_order);
+            buf = NULL;
             continue;
         }
         if (reg && !IS_ERR(reg))

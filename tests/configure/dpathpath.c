@@ -9,7 +9,7 @@
 #include <linux/posix_types.h>
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#ifdef HAVE_KCONFIG
 #include <linux/kconfig.h>
 #endif
 

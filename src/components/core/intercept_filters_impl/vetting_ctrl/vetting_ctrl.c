@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -421,6 +421,14 @@ static inline void waitVettingResponse(const void* self, VettingGroup* group, Ve
                 }
                 dbg("[intercepted %u-%u-%u] Vetting complete - %s", processParentPID(current), current->tgid, current->pid, actmsg);
 #endif
+
+                if ( likely(details->file != NULL) )
+                {
+                    /* Close file now, to ensure it is in the correct state
+                        before returning control to the intercepted process. */ 
+                    details->file->close(details->file->object);
+                }
+
                 break;
             }
             else if ( atomic_read(&details->reopen) )
@@ -488,7 +496,7 @@ static inline void waitVettingResponse(const void* self, VettingGroup* group, Ve
 
             if ( ret == -ETIME )
             {
-                /* Go back to sleep if we have timeouted while external
+                /* Go back to sleep if we have timed out while external
                    filesystem operation is in progress. Or if there was some
                    activity in the meantime. */
                 if ( details->externalOperation || (time_diff(details->lastActivity, jiffies) < msecs_to_jiffies(atomic_read(timeout))) )
@@ -689,7 +697,7 @@ static void examineFile(const void* self, IEvaluationReport* report, const IPers
             }
         }
 
-        /* Accomodate lazy userspace by saying that this process has no root. Poor process. ;( */
+        /* Accommodate lazy userspace by saying that this process has no root. Poor process. ;( */
         if ( likely(rootdir_len == 1) )
         {
             rootdir_len = 0;
@@ -1511,7 +1519,7 @@ static VettingClient* initializeClient(void* self)
         client->streamSize >>= 1;
     }
 
-    /* Account for the posibility that max packet size is very small to begin with */
+    /* Account for the possibility that max packet size is very small to begin with */
     if ( !client->stream )
     {
         client->stream = talpa_alloc(client->streamSize);
@@ -1764,7 +1772,7 @@ static struct TalpaProtocolHeader* deregisterClient(void* self, VettingClient* c
         /* This is ok regardless of the phase vetting is in. destroyVettingDetails
            always happens at the end of the vetting process. Since it is a reference
            counted structure we are only just decrementing it here while the
-           intercepted process will actualy destroy it. */
+           intercepted process will actually destroy it. */
         destroyVettingDetails(details);
     }
 
@@ -1914,7 +1922,7 @@ static struct TalpaProtocolHeader* obtainVettingDetails(void* self, VettingClien
             get_job:
             job = talpa_list_entry(group->intercepted.next, VettingDetails, head);
             talpa_list_del(&job->head);
-            /* Increase vetting details reference count (but only if reponse is required) */
+            /* Increase vetting details reference count (but only if response is required) */
             if ( job->responseRequired )
             {
                 atomic_inc(&job->refcnt);

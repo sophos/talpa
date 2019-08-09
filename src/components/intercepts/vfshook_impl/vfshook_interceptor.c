@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2018 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -1062,7 +1062,7 @@ static int maybeScanDentryRevalidate(int resultCode, struct dentry * dentry, str
     }
 
 #ifdef CONFIG_X86_64
-    if ( (void*) filp == (void*) 0x100000000)
+    if ( (void*) filp == (void*) 0x100000000L)
     {
         dopsdbg("maybeScanDentryRevalidate: filp == 0x100000000, so not scanning");
         dopsdbg("maybeScanDentryRevalidate details: After filp=%p, beforeFilp=%p openflags=%x create_mode=%x ndflags=%x",filp,filpBefore,openflags,nd->intent.open.create_mode,nd->flags);

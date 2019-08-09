@@ -3,7 +3,7 @@
 #
 # TALPA Filesystem Interceptor
 #
-# Copyright (C) 2004-2018 Sophos Plc
+# Copyright (C) 2004-2019 Sophos Plc
 #
 # This program is free software; you can redistribute it and/or modify it under the terms of the
 # GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -18,7 +18,7 @@
 
 AC_INIT(talpa, 0.9.95)
 AC_CONFIG_AUX_DIR(config)
-AC_COPYRIGHT(Copyright (c) 2004-2018 Sophos Plc)
+AC_COPYRIGHT(Copyright (c) 2004-2019 Sophos Plc)
 
 AM_INIT_AUTOMAKE([1.9 tar-ustar dist-zip dist-bzip2])
 AM_CONFIG_HEADER(config.h)
@@ -713,6 +713,14 @@ if test "$tmp" = "1"; then
         kernccflags="${kernccflags} -D__XEN_INTERFACE_VERSION__=${tmp}"
     fi
 fi
+
+# kconfig.h present since vanilla 3.10.0 and RHEL 6 2.6.32-754.14.2
+TALPA_LOCATE_HEADER(linux/kconfig.h, $kernelhdrspath, kconfigfound=yes, kconfigfound=no)
+AC_MSG_RESULT([$kconfigfound - $TALPA_HEADER_LOCATION])
+if test "$kconfigfound" = "yes" ; then
+    kernccflags="${kernccflags} -DHAVE_KCONFIG"
+fi
+
 AC_MSG_RESULT([done])
 
 if test "$xen" = "1"; then
@@ -934,6 +942,9 @@ if test "$auto_system_map" = "yes"; then
 fi
 if test ! -f "$system_map"; then
     AC_MSG_ERROR([$system_map not found])
+    system_map=""
+elif test ! -r "$system_map"; then
+    AC_MSG_ERROR([$system_map not readable])
     system_map=""
 else
     AC_MSG_RESULT([$system_map])
