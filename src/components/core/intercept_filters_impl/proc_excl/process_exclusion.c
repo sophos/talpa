@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -132,23 +132,21 @@ ProcessExclusionProcessor* newProcessExclusionProcessor(void)
     return object;
 }
 
-static void deleteProcessExclusionProcessor(struct tag_ProcessExclusionProcessor* object)
+static void deleteProcessExclusionProcessor(ProcessExclusionProcessor* object)
 {
+#ifdef DEBUG
     ProcessExcluded* process;
-    struct list_head* excluded;
-    struct list_head* iter;
 
 
-    /* Cleanup registered processs */
+    /* Check for registered processes */
     talpa_rcu_write_lock(&object->mExcludedLock);
-    talpa_list_for_each_safe(excluded, iter, &object->mExcluded)
+    
+    talpa_list_for_each_entry_rcu(process, &object->mExcluded, head)
     {
-        process = talpa_list_entry(excluded, ProcessExcluded, head);
-        talpa_list_del(excluded);
-        talpa_free(process);
+        dbg("Process [%u/%u] still registered", process->processID, process->threadID);
     }
     talpa_rcu_write_unlock(&object->mExcludedLock);
-    talpa_rcu_synchronize();
+#endif
 
     talpa_free(object);
     return;
@@ -159,6 +157,7 @@ static inline bool checkProcessExcluded(const void* self)
     ProcessExcluded* excluded;
     pid_t pid = current->tgid;
     void* files = current->files;
+    bool active = false;
 
 
     talpa_rcu_read_lock(&this->mExcludedLock);
@@ -166,13 +165,13 @@ static inline bool checkProcessExcluded(const void* self)
     {
         if ( (excluded->files == files) || (excluded->processID == pid) )
         {
-            talpa_rcu_read_unlock(&this->mExcludedLock);
-            return excluded->active;
+            active = excluded->active;
+            break;
         }
     }
     talpa_rcu_read_unlock(&this->mExcludedLock);
 
-    return false;
+    return active;
 }
 
 /*
@@ -220,12 +219,7 @@ static ProcessExcluded* registerProcess(void* self, pid_t pid, pid_t tid, void* 
     {
         if ( (excluded->processID == pid) || (excluded->files == files) )
         {
-            /* Increment reference count if different thread from the
-               same process wants to register. */
-            if ( excluded->threadID != tid )
-            {
-                atomic_inc(&excluded->refcnt);
-            }
+            atomic_inc(&excluded->refcnt);
             talpa_rcu_write_unlock(&this->mExcludedLock);
             /* Free this since we don't need it */
             talpa_free(process);
@@ -237,7 +231,6 @@ static ProcessExcluded* registerProcess(void* self, pid_t pid, pid_t tid, void* 
     /* This is a new process, so lets register it */
     if ( process )
     {
-        TALPA_INIT_LIST_HEAD(&process->head);
         atomic_set(&process->refcnt, 1);
         process->processID = pid;
         process->threadID = tid;
@@ -260,35 +253,34 @@ static void deregisterProcess(void* self, ProcessExcluded* obj)
 {
     ProcessExcluded* excluded;
 
-
-    talpa_rcu_write_lock(&this->mExcludedLock);
-
-    /* Check if we know about the process which wants to deregister and do it */
-    talpa_list_for_each_entry_rcu(excluded, &this->mExcluded, head)
+    /* Only de-register when the last thread is going away. */
+    if ( atomic_dec_and_test(&obj->refcnt) )
     {
-        if ( excluded == obj )
+        talpa_rcu_write_lock(&this->mExcludedLock);
+
+        /* Check if we know about the process which wants to deregister and do it */
+        talpa_list_for_each_entry_rcu(excluded, &this->mExcluded, head)
         {
-            /* Only de-register when the last thread is going away. */
-            if ( atomic_dec_and_test(&obj->refcnt) )
+            if ( excluded == obj )
             {
                 talpa_list_del_rcu(&obj->head);
                 talpa_rcu_write_unlock(&this->mExcludedLock);
                 dbg("Process [%u/%u] deregistered", obj->processID, obj->threadID);
                 talpa_rcu_synchronize();
                 talpa_free(obj);
+                return;
             }
-            else
-            {
-                talpa_rcu_write_unlock(&this->mExcludedLock);
-            }
-            return;
         }
+
+        talpa_rcu_write_unlock(&this->mExcludedLock);
+
+        dbg("Stale process [%u/%u] deregistered", obj->processID, obj->threadID);
+        talpa_free(obj);
     }
-
-    talpa_rcu_write_unlock(&this->mExcludedLock);
-
-    /* This can happen on core hot-swap */
-    dbg("Isolated process [%u/%u] deregistred", current->tgid, current->pid);
+    else
+    {
+        dbg("Process [%u/%u] deregistered but still connected", obj->processID, obj->threadID);
+    }
 
     return;
 }
