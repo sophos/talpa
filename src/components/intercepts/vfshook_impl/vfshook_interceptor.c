@@ -2519,7 +2519,7 @@ static long talpaPreMount(char __user * dev_name, char __user * dir_name, char _
     dir = talpa_getname(dir_name);
     if ( IS_ERR(dir) )
     {
-        dbg(" talpa_getname  error  is %ld",(long)IS_ERR(dir));
+        dbg(" talpa_getname error is %ld",(long)IS_ERR(dir));
         goto out1;
     }
 
@@ -2528,20 +2528,14 @@ static long talpaPreMount(char __user * dev_name, char __user * dir_name, char _
      */
     if ( unlikely( ( (flags & VFSHOOK_MS_IGNORE) != 0 ) ) )
     {
-        char *dir_str = NULL;
-        int ret = talpa_copy_mount_string(dir_name, &dir_str);
-        if ( ret < 0 )
-        {
-            dir_str = "<unknown>";
-        }
-        dbg("talpaPreMount ignoring move/bind mount of '%s' on '%s'", dev_name, dir_name);
+        dbg("talpaPreMount ignoring move/bind mount of '%s' on '%s'", dev, getCStr(dir));
         goto out2;
     }
 
     decision = talpa_copy_mount_string(type, &fstype);
     if ( decision < 0 )
     {
-        dbg("talpa_copy_mount returned error is %d",decision);
+        dbg("talpa_copy_mount returned error is %d", decision);
         goto out2;
     }
 
@@ -2670,7 +2664,9 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
 #else
     struct path p;
 #endif
-    TALPA_FILENAME_T* dir;
+	TALPA_FILENAME_T* dir = NULL;
+	const char* abs_dir;
+	char* fstype = NULL;
 #ifdef TALPA_HAS_SMBFS
     char* path;
     size_t path_size;
@@ -2741,16 +2737,23 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
        Do it only if the actual mount succeeded. */
     if ( !err )
     {
-        const char* abs_dir;
 
         dir = talpa_getname(dir_name);
         if (IS_ERR(dir))
         {
             ret = PTR_ERR(dir);
+			dir = NULL; /* don't free it */
             goto out;
         }
 
         abs_dir = getCStr(dir);
+
+        err = talpa_copy_mount_string(type, &fstype);
+        if ( err < 0 )
+        {
+            dbg("talpa_copy_mount returned error is %d", err);
+            goto out;
+        }
 
 #ifdef TALPA_HANDLE_RELATIVE_PATH_IN_MOUNT
         if (abs_dir[0] != '/')
@@ -2802,7 +2805,7 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
         ret = kern_path(abs_dir, TALPA_LOOKUP, &p);
 #endif
         /* dbg("talpaPostMount ret=%d abs_dir=%s",ret,abs_dir); */
-        talpa_putname(dir); abs_dir = NULL; dir = NULL;
+
         if ( ret == 0 )
         {
 
@@ -2885,18 +2888,37 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
             }
 #endif
         }
+        else
+        {
+# ifdef TALPA_HAVE_PATH_LOOKUP
+            talpa_path_release(&nd);
+# else
+            path_put(&p);
+# endif
+        }
+
         if (flags & VFSHOOK_MS_IGNORE)
         {
-            dbg("talpaPostMount: Failed to lookup path (%d) for path '%s', filesystem '%s'", ret, abs_dir, type);
+            dbg("talpaPostMount: Failed to lookup path (%d) for path '%s', filesystem '%s'", ret, abs_dir, fstype);
             ret = 0; // Ignore the error
         }
         else
         {
-            err("Failed to synchronise post-mount! (%d) for path '%s', filesystem '%s'", ret, abs_dir, type);
+            err("Failed to synchronise post-mount! (%d) for path '%s', filesystem '%s'", ret, abs_dir, fstype);
         }
     }
 
 out:
+	if (fstype != NULL)
+	{
+		kfree(fstype);
+	}
+
+	if (dir != NULL)
+	{
+		/* we hold on to this until now, so that abs_dir remains valid */
+		talpa_putname(dir);
+	}
 
     if (page != NULL)
     {
@@ -2932,7 +2954,7 @@ static void talpaPreUmount(char __user * name, int flags, void** ctx)
         }
         else
         {
-            dbg("Failed to examine umount of %s! (no info)", name);
+            dbg("Failed to examine umount of %s! (no info)", getCStr(kname));
         }
 
         talpa_putname(kname);
@@ -2952,15 +2974,21 @@ static void talpaPostUmount(int err, char __user * name, int flags, void* ctx)
     struct patchedFilesystem *patch = NULL;
     int ret;
     int propagationCount = 1;
-
-
+    TALPA_FILENAME_T* kname;
+    
     if ( err || !pFSInfo )
     {
         return;
     }
 
+	kname = talpa_getname(name);
+    if ( IS_ERR(kname) )
+    {
+        return;
+    }
+
     propagationCount = pFSInfo->propagationCount(pFSInfo->object);
-    DEBUG_info("propagation points for umount on %s = %d", name, propagationCount);
+    DEBUG_info("propagation points for umount on %s = %d", getCStr(kname), propagationCount);
 
     /* Unprotect read-only memory outside locks held. */
     do
@@ -2981,7 +3009,7 @@ static void talpaPostUmount(int err, char __user * name, int flags, void* ctx)
         if ( !strcmp(pFSInfo->type(pFSInfo->object), p->fstype->name) )
         {
             patch = p;
-            DEBUG_info("%s (%s) was unmounted.", name, patch->fstype->name);
+            DEBUG_info("%s (%s) was unmounted.", getCStr(kname), patch->fstype->name);
             break;
         }
     }
@@ -3023,11 +3051,13 @@ static void talpaPostUmount(int err, char __user * name, int flags, void* ctx)
     }
     else
     {
-        dbg("%s was unmounted, but we hadn't patched it.", name);
+        dbg("%s was unmounted, but we hadn't patched it.", getCStr(kname));
         talpa_rcu_write_unlock(&GL_object.mPatchLock);
     }
 
     talpa_syscallhook_modify_finish();
+
+    talpa_putname(kname);
 
     return;
 }

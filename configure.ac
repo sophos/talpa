@@ -145,7 +145,7 @@ AC_ARG_ENABLE(task-new-tty,
                 [   auto_tasknewtty=yes])
 
 AC_ARG_ENABLE(backported-rcu,
-                [  --enable-backported-rcu        Fedora FC4 2.6.11 has rcpudate.h backported from vanilla 2.6.12 [[autodetected]]],
+                [  --enable-backported-rcu        Fedora FC4 2.6.11 has rcupdate.h backported from vanilla 2.6.12 [[autodetected]]],
                 [   if test "$enableval" = "yes"; then
                         AC_SUBST(rcubackport,"-DTALPA_HAS_BACKPORTED_RCU")
                     fi

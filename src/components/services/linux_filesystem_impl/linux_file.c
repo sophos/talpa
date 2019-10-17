@@ -568,7 +568,8 @@ static ssize_t read(void* self, void __user * data, size_t count)
     }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
-    retval = kernel_read(file, data, count, &file->f_pos);
+    /* kernel_read is valid for both user and kernel pointers, due to use of set_fs() */
+    retval = kernel_read(file, (__force void *) data, count, &file->f_pos);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
     oldfs = get_fs(); set_fs(KERNEL_DS);
     retval = vfs_read(file, data, count, &file->f_pos);
@@ -602,7 +603,8 @@ static ssize_t write(void* self, const void __user * data, size_t count)
     }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
-    retval = kernel_write(file, data, count, &file->f_pos);
+    /* kernel_write is valid for both user and kernel pointers, due to use of set_fs() */
+    retval = kernel_write(file, (__force void *) data, count, &file->f_pos);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
     oldfs = get_fs(); set_fs(KERNEL_DS);
     retval = vfs_write(file, data, count, &file->f_pos);
