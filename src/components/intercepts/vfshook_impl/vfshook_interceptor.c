@@ -2802,7 +2802,7 @@ static long talpaPostMount(int err, char __user * dev_name, char __user * dir_na
 #ifdef TALPA_HAVE_PATH_LOOKUP
         ret = talpa_path_lookup(abs_dir, TALPA_LOOKUP, &nd);
 #else
-        ret = kern_path(abs_dir, TALPA_LOOKUP, &p);
+        ret = talpa_kern_path(abs_dir, TALPA_LOOKUP, &p);
 #endif
         /* dbg("talpaPostMount ret=%d abs_dir=%s",ret,abs_dir); */
 

@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -156,6 +156,17 @@ static inline char *talpa_d_path(struct dentry *dentry, struct vfsmount *mnt, ch
 /* No path_lookup */
 #undef TALPA_HAVE_PATH_LOOKUP
 
+/* call kern_path without audit, to avoid deadlocks with FUSE mounts */
+static inline int talpa_kern_path(const char *name, unsigned int flags, struct path *path)
+{
+	int ret;
+	struct audit_context *context = current->audit_context;
+	current->audit_context = NULL;
+	ret = kern_path(name, flags, path);
+	current->audit_context = context;
+	return ret;	
+}
+
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2,4,25) && !defined TALPA_HAS_PATH_LOOKUP
 #define TALPA_HAVE_PATH_LOOKUP 1
 static inline int talpa_path_lookup(const char *path, unsigned flags, struct nameidata *nd)
@@ -166,7 +177,16 @@ static inline int talpa_path_lookup(const char *path, unsigned flags, struct nam
         return error;
 }
 #else
-#define talpa_path_lookup path_lookup
+/* call path_lookup without audit, to avoid deadlocks with FUSE mounts */
+static inline int talpa_path_lookup(const char *name, unsigned int flags, struct nameidata *nd)
+{
+	int ret;
+	struct audit_context *context = current->audit_context;
+	current->audit_context = NULL;
+	ret = path_lookup(name, flags, nd);
+	current->audit_context = context;
+	return ret;	
+}
 #define TALPA_HAVE_PATH_LOOKUP 1
 #endif
 
