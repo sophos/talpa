@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2011 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -144,11 +144,15 @@ typedef struct rcu_head talpa_rcu_head;
 #define TALPA_RCU_INIT              RCU_HEAD_INIT
 #define talpa_rcu_init(x)           INIT_RCU_HEAD(x)
 #define talpa_rcu_call(head, func)  call_rcu(head, func)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,12)) || defined TALPA_HAS_BACKPORTED_RCU
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32))
+#define talpa_rcu_synchronize       synchronize_rcu
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,12)) || defined TALPA_HAS_BACKPORTED_RCU
 #define talpa_rcu_synchronize       synchronize_sched
 #else
 #define talpa_rcu_synchronize       synchronize_kernel
 #endif
+
 #else /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0) */
 
 typedef  unsigned int talpa_rcu_head;
