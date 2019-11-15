@@ -2211,6 +2211,9 @@ static bool onNoScanList(const char *name)
     return found;
 }
 
+/* global for module param */
+static int no_scan_on_load = 0;
+
 static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMount)
 {
     struct patchedFilesystem*   p;
@@ -2284,8 +2287,9 @@ static int processMount(struct vfsmount* mnt, unsigned long flags, bool fromMoun
         return -ENOMEM;
     }
 
-    /* We do not want to search for files on some filesystems on mount. */
-    if ( fromMount && onNoScanList(fsname) )
+    /* We do not want to search for files on some filesystems on mount.
+     * (and not on talpa load, if no_scan_on_load option is set) */
+    if ( ( fromMount || no_scan_on_load ) && onNoScanList(fsname) )
     {
         reg = dget(mnt->mnt_root);
 #ifdef TALPA_HAS_SMBFS
@@ -3081,14 +3085,17 @@ static char *no_scan = "";
 module_param(good_list, charp, 0400);
 module_param(skip_list, charp, 0400);
 module_param(no_scan, charp, 0400);
+module_param(no_scan_on_load, int, 0400);
 #else
 MODULE_PARM(good_list, "s");
 MODULE_PARM(skip_list, "s");
 MODULE_PARM(no_scan, "s");
+MODULE_PARM(no_scan_on_load, "i");
 #endif
 MODULE_PARM_DESC(good_list, "Comma-delimited list of additions/removals from the list of known good filesystems");
 MODULE_PARM_DESC(skip_list, "Comma-delimited list of additions/removals from the list of ignored filesystems");
 MODULE_PARM_DESC(no_scan, "Comma-delimited list of additions/removals from the list of filesystems which need a workaround on mount");
+MODULE_PARM_DESC(no_scan_on_load, "Set to apply no_scan list at talpa load time, rather than just on new mounts");
 
 static void parseParams(void* self, char *param, talpa_list_head* list, char **set)
 {
