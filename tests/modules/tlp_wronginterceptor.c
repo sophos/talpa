@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2008-2018 Sophos Limited, Oxford, England.
+ * Copyright (C) 2008-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -78,14 +78,79 @@ static struct talpa_syscall_operations ops = {
     .umount_post = talpaDummyPostUmount,
 };
 
+
+int (*syscallhook_register)(unsigned int version, struct talpa_syscall_operations* ops);
+void (*syscallhook_unregister)(struct talpa_syscall_operations* ops);
+
 static int __init talpa_test_init(void)
 {
-    return __talpa_syscallhook_register(0, &ops);
+	int err = -EFAULT;
+	
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
+    syscallhook_register = (int (*)(unsigned int, struct talpa_syscall_operations* ops))inter_module_get("__talpa_syscallhook_register");
+    syscallhook_unregister = (void (*)(struct talpa_syscall_operations* ops))inter_module_get("talpa_syscallhook_unregister");
+#else
+    syscallhook_register = symbol_get(__talpa_syscallhook_register);
+    syscallhook_unregister = symbol_get(talpa_syscallhook_unregister);
+#endif
+
+    if ( syscallhook_register && syscallhook_unregister )
+    {
+        err = syscallhook_register(0, &ops);
+        if ( err )
+        {
+            err("Failed to register with talpa-syscallhook! (%d)", err);
+            goto error;
+        }
+
+        info("Enabled");
+
+        return 0;
+    }
+    else
+    {
+            err("Failed to register with talpa-syscallhook!");
+            goto error;
+    }
+
+error:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
+        if ( syscallhook_register )
+        {
+            inter_module_put("__talpa_syscallhook_register");
+        }
+        if ( syscallhook_unregister )
+        {
+            inter_module_put("talpa_syscallhook_unregister");
+        }
+#else
+        if ( syscallhook_register )
+        {
+            symbol_put(__talpa_syscallhook_register);
+        }
+        if ( syscallhook_unregister )
+        {
+            symbol_put(talpa_syscallhook_unregister);
+        }
+#endif
+
+    return err;
 }
 
 static void __exit talpa_test_exit(void)
 {
-    talpa_syscallhook_unregister(&ops);
+    if ( syscallhook_register && syscallhook_unregister )
+    {
+        syscallhook_unregister(&ops);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
+        inter_module_put("__talpa_syscallhook_register");
+        inter_module_put("talpa_syscallhook_unregister");
+#else
+        symbol_put(__talpa_syscallhook_register);
+        symbol_put(talpa_syscallhook_unregister);
+#endif
+        info("Disabled");
+    }
 }
 
 /*

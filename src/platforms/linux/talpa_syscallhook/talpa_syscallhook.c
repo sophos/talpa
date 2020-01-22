@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright(C) 2004-2018 Sophos Limited, Oxford, England.
+ * Copyright(C) 2004-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -178,6 +178,13 @@ const char talpa_iface_version[] = "$TALPA_IFACE_VERSION:" TALPA_SYSCALLHOOK_IFA
 #  define SYSCALL_IA32_ORIG(name)
 #  define DO_IA32_ORIG(name)
 # endif
+
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(5,1,0)
+#  define SYSCALL_SET_ARGUMENTS(task, regs, i, n, args) syscall_set_arguments(task, regs, args)
+# else
+#  define SYSCALL_SET_ARGUMENTS(task, regs, i, n, args) syscall_set_arguments(task, regs, i, n, args)
+# endif
+
 # define SYSCALL_ORIGx(x, name, ...) \
     static asmlinkage long (*orig_##name)(const struct pt_regs *regs);\
     SYSCALL_IA32_ORIG(name)\
@@ -190,8 +197,8 @@ const char talpa_iface_version[] = "$TALPA_IFACE_VERSION:" TALPA_SYSCALLHOOK_IFA
     static long __origl_##name(__MAP(x, __SC_LONG, __VA_ARGS__))\
     {\
         struct pt_regs regs;\
-        unsigned long args[] = { __MAP(x, __SC_ARGS, __VA_ARGS__) };\
-        syscall_set_arguments(current, &regs, 0, x, args);\
+        unsigned long args[6] = { __MAP(x, __SC_ARGS, __VA_ARGS__) };\
+        SYSCALL_SET_ARGUMENTS(current, &regs, 0, x, args);\
         __MAP(x,__SC_TEST,__VA_ARGS__);\
         DO_IA32_ORIG(name)\
         return orig_##name(&regs);\

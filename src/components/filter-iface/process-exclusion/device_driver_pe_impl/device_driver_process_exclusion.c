@@ -3,7 +3,7 @@
  *
  * TALPA Filesystem Interceptor
  *
- * Copyright (C) 2004-2017 Sophos Limited, Oxford, England.
+ * Copyright (C) 2004-2019 Sophos Limited, Oxford, England.
  *
  * This program is free software; you can redistribute it and/or modify it under the terms of the
  * GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -266,7 +266,6 @@ static int ddpeOpen(struct inode* inode, struct file* file)
     ctx->files = current->files;
     ctx->modified = false;
     ctx->state = false;
-    ctx->closed = false;
     ctx->excluded = procexcl->registerProcess(procexcl->object, ctx->pid, ctx->tid, ctx->files);
 
     if ( !ctx->excluded )
@@ -295,8 +294,6 @@ static int ddpeClose(struct inode* inode, struct file* file)
     if ( !GL_object.mAttached )
     {
         dbg("disconnected close for 0x%p (0x%p)", ctx, ctx->excluded);
-        ctx->modified = true;
-        ctx->closed = true;
     }
     else
     {
@@ -305,9 +302,9 @@ static int ddpeClose(struct inode* inode, struct file* file)
 
         procexcl = GL_object.mProcExcl;
         procexcl->deregisterProcess(procexcl->object, ctx->excluded);
-        talpa_list_del(&ctx->head);
-        talpa_free(ctx);
     }
+    talpa_list_del(&ctx->head);
+    talpa_free(ctx);
     up_write(&GL_object.mSem);
 
     return 0;
@@ -399,18 +396,7 @@ static bool attach(void* self)
 
             talpa_list_for_each_entry_safe(ctx, tmp, &GL_object.mContextList, head)
             {
-                /* Clean-up if the client went away while the core was disconnected */
-                if ( ctx->modified && ctx->closed )
-                {
-                    ctx->modified = false;
-                    dbg("replaying previous disconnected close for 0x%p (0x%p)", ctx, ctx->excluded);
-                    this->mProcExcl->deregisterProcess(this->mProcExcl->object, ctx->excluded);
-                    talpa_list_del(&ctx->head);
-                    talpa_free(ctx);
-                    continue;
-                }
-
-                /* Re-register in case ProcessExcluder forgot about us */
+                /* Re-register */
                 ctx->excluded = this->mProcExcl->registerProcess(this->mProcExcl->object, ctx->pid, ctx->tid, ctx->files);
 
                 if ( ctx->modified )
@@ -490,6 +476,16 @@ static bool detach(void* self)
 
     if ( this->mAttached )
     {
+        struct DDPEOpenContext* ctx;
+        struct DDPEOpenContext* tmp;
+
+        /* We're about to lose contact with talpa_core. Deregister everything */
+        talpa_list_for_each_entry_safe(ctx, tmp, &GL_object.mContextList, head)
+        {
+            this->mProcExcl->deregisterProcess(this->mProcExcl->object, ctx->excluded);
+            ctx->excluded = NULL;
+        }
+
         this->mConfigurator->detach(this->mConfigurator->object, &this->i_IConfigurable);
         this->mProcExcl = NULL;
         this->mAttached = false;

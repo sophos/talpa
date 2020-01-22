@@ -2,7 +2,7 @@
 #
 # TALPA test script
 #
-# Copyright (C) 2008-2011 Sophos Limited, Oxford, England.
+# Copyright (C) 2008-2019 Sophos Limited, Oxford, England.
 #
 # This program is free software; you can redistribute it and/or modify it under the terms of the
 # GNU General Public License Version 2 as published by the Free Software Foundation.
@@ -30,7 +30,8 @@ fi
 
 tlp_insmod modules/tlp-wronginterceptor.${ko} 2>/dev/null
 
-if test $? -ne 0; then
+# expecting EPROTO (71) 
+if test $? -ne 71; then
     exit 0
 fi
 
