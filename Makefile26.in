@@ -53,6 +53,7 @@ EXTRA_CFLAGS += -I$(src)/src -I$(src)/src/ifaces -I$(src)/include \
 		@lookup_mnt_last@ \
 		@get_fs_root_and_pwd@ \
 		@vfsmount_namespace@ \
+		@uapimountbackport@ \
         @compile_flags@
 
 obj-m := talpa_linux.o talpa_core.o talpa_vcdevice.o talpa_pedevice.o talpa_pedconnector.o
