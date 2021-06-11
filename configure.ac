@@ -198,6 +198,15 @@ AC_ARG_ENABLE(backported-jiffies,
                 ],
                 [   auto_jiffiesbackport=yes])
 
+AC_ARG_ENABLE(backported-uapi-mount,
+                [  --enable-backported-uapi-mount      RHEL 8.4 kernel can have features backported from newer versions [[autodetected]]],
+                [   if test "$enableval" = "yes"; then
+                        AC_SUBST(uapimountbackport,"-DTALPA_HAS_BACKPORTED_UAPI_MOUNT")
+                    fi
+                    auto_uapimountbackport=no
+                ],
+                [   auto_uapimountbackport=yes])
+
 AC_ARG_ENABLE(backported-filldir,
                 [  --enable-backported-filldir    More recent filldir_t callbacks pass u64 for inode number [[autodetected]]],
                 [   if test "$enableval" = "yes"; then
@@ -878,7 +887,7 @@ else
     TALPA_LOCATE_HEADER(linux/sched.h, $kernelhdrspath)
     AC_MSG_CHECKING([for unused task flag])
     ${RM} -f ffzb_local.c ffzb_local
-    if ! ${EGREP} "#define PF_" $TALPA_HEADER_LOCATION/linux/sched.h > ffzb_local.c; then
+    if ! ${EGREP} "#define PF_" $TALPA_HEADER_LOCATION/linux/sched.h | ${SED} 's|..\s*$|\*/|' > ffzb_local.c; then
         AC_MSG_ERROR([grep error])
     fi
     echo "#define PF_TALPA_ALL \\" >> ffzb_local.c
@@ -1577,6 +1586,25 @@ if test $((kern_version_code)) -ge 132608; then
         fi
     fi
 
+    # Autodetect if uapi/linux/mount.h change was backported
+    # < 5.0
+    if test $((kern_version_code)) -lt 327680; then
+        if test "$auto_uapimountbackport" = "yes"; then
+            AC_MSG_CHECKING([for backported uapi mount])
+            if test "$rhel_release" = "yes"; then
+                ## 8.4
+                if test $((rhel_release_code)) -ge 2052; then
+                    AC_MSG_RESULT([detected])
+                    AC_SUBST(uapimountbackport,"-DTALPA_HAS_BACKPORTED_UAPI_MOUNT")
+                else
+                    AC_MSG_RESULT([not detected])
+                fi
+            else
+                AC_MSG_RESULT([not detected])
+            fi
+        fi
+    fi
+
     # Detect whether smbfs is present
     AC_MSG_CHECKING([for smbfs])
     TALPA_LOCATE_HEADER(linux/smb_fs.h, $kernelhdrspath, /bin/true, /bin/false , [quiet])
@@ -2118,6 +2146,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@jiffiesbackport@/${jiffiesbackport}/; \
                 s/@filldirbackport@/${filldirbackport}/; \
                 s/@mountrcubackport@/${mountrcubackport}/; \
+                s/@uapimountbackport@/${uapimountbackport}/; \
                 s/@smbfs@/${smbfs}/; \
                 s/@buildlsm@/${lsm}/; \
                 s/@lsm265@/${lsm265}/; \
@@ -2179,6 +2208,7 @@ if test $((kern_version_code)) -ge 132608; then
                 s/@jiffiesbackport@/${jiffiesbackport}/; \
                 s/@filldirbackport@/${filldirbackport}/; \
                 s/@mountrcubackport@/${mountrcubackport}/; \
+                s/@uapimountbackport@/${uapimountbackport}/; \
                 s/@smbfs@/${smbfs}/; \
                 s/@buildlsm@/${lsm}/; \
                 s/@lsm265@/${lsm265}/; \

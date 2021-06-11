@@ -26,7 +26,7 @@
 #include <linux/unistd.h>
 
 #include <linux/mount.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0) || TALPA_HAS_BACKPORTED_UAPI_MOUNT
 #include <uapi/linux/mount.h>
 #endif
 #include <linux/sched.h>
